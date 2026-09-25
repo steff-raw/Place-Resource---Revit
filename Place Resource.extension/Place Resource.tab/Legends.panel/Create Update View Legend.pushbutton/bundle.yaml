@@ -1,0 +1,5 @@
+title: "Create / Update\nView Legend"
+tooltip: >
+  Create or update a legend containing only the types visible in the active view.
+author: Place Resource
+context: doc-project

@@ -1,0 +1,57 @@
+{
+  "Type Mark": {
+    "builtin": "ALL_MODEL_TYPE_MARK",
+    "guid": null,
+    "names": ["Type Mark"]
+  },
+  "Type Name": {
+    "builtin": "SYMBOL_NAME_PARAM",
+    "guid": null,
+    "names": ["Type Name"]
+  },
+  "Family Name": {
+    "builtin": "SYMBOL_FAMILY_NAME_PARAM",
+    "guid": null,
+    "names": ["Family Name"]
+  },
+  "Description": {
+    "builtin": "ALL_MODEL_DESCRIPTION",
+    "guid": null,
+    "names": ["Description"]
+  },
+  "Function": {
+    "builtin": "FUNCTION_PARAM",
+    "guid": null,
+    "names": ["Function"]
+  },
+  "Width": {
+    "builtin": "WALL_ATTR_WIDTH_PARAM",
+    "guid": null,
+    "names": ["Width"]
+  },
+  "Fire Rating": {
+    "builtin": "FIRE_RATING",
+    "guid": null,
+    "names": ["Fire Rating"]
+  },
+  "Acoustic Rating": {
+    "builtin": null,
+    "guid": null,
+    "names": ["Acoustic Rating", "STC"]
+  },
+  "STC": {
+    "builtin": null,
+    "guid": null,
+    "names": ["STC", "Acoustic Rating"]
+  },
+  "Assembly Code": {
+    "builtin": "UNIFORMAT_CODE",
+    "guid": null,
+    "names": ["Assembly Code"]
+  },
+  "Keynote": {
+    "builtin": "KEYNOTE_PARAM",
+    "guid": null,
+    "names": ["Keynote"]
+  }
+}

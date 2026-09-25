@@ -1,0 +1,6 @@
+title: "Update All\nGenerated Legends"
+tooltip: >
+  Recollect visible types for every tool-managed legend and update the ones
+  whose content has changed.
+author: Place Resource
+context: doc-project
