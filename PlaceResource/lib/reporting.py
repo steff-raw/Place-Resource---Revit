@@ -179,18 +179,31 @@ def print_library_audit(rows):
             "",
             "- Legend: {0}".format(_link(row.get("legend_view_id"), row["legend"])),
             "- Category: {0}".format(row["category"]),
-            "- Source: {0}".format(row.get("source") or "Excel library"),
+            "- Source: {0}".format(row.get("source") or "unknown"),
             "- Sheet: {0}".format(row["sheet"]),
             "- Rows: {0}".format(", ".join(row["codes"]) or "None"),
-            "- Codes no longer in the source: {0}".format(_id_list(row["missing_codes"])),
-            "- Filled Region Types missing from the model: {0}".format(_id_list(row["missing_region_types"])),
-            "- Type Marks on the sheet that are in the library but not in the legend: {0}".format(
+            "- Types no longer in the family: {0}".format(_id_list(row["missing_codes"])),
+            "- Type Marks on the sheet that have a family type but are not in the legend: {0}".format(
                 _id_list(row["unlisted_marks"])
             ),
             "- Needs update: {0}".format("Yes" if row["outdated"] else "No"),
             "- Problem: {0}".format(row.get("problem") or "None"),
             "- Last update: {0}".format(row.get("updated_utc") or "Unknown"),
         ]))
+
+
+def print_family_report(report):
+    """Print the result of Build Legend Family."""
+    _print_md("\n".join([
+        "# Legend family {0}".format(report.get("status")),
+        "",
+        "- Family: {0}".format(report.get("family_name")),
+        "- Types: {0}".format(report.get("types")),
+        "- Saved to: {0}".format(report.get("path") or "not saved"),
+    ]))
+    _print_messages("Warnings", report.get("warnings") or [])
+    _print_messages("Errors", report.get("errors") or [])
+    _print_messages("Notices", report.get("notices") or [])
 
 
 def alert_error(title, message):

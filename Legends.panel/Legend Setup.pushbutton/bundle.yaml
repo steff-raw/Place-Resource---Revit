@@ -1,6 +1,6 @@
 title: "Legend\nSetup"
 tooltip: >
-  Build a legend from the Excel legend library: choose a category, tick rows,
-  and get hatch, title and description for each row.
+  Build a legend from the category symbol family: choose a category, tick types,
+  and one symbol per type is placed in the legend.
 author: Place Resource
 context: doc-project

@@ -1,24 +1,18 @@
 {
-  "schema_version": "1.0",
-  "library_file": "legend_library.xlsx",
+  "schema_version": "2.0",
   "defaults": {
+    "family_name": "PR Legend - {category}",
+    "description_parameter": "Description",
     "template_legend_name": "_TEMPLATE - LIBRARY LEGEND",
     "output_name_pattern": "{category} LEGEND",
     "sheet_output_name_pattern": "{category} LEGEND - {sheet_number}",
     "scale": 100,
     "source_view_types": ["FloorPlan", "CeilingPlan", "Section", "Elevation"],
     "styles": {
-      "title_text_type": "2.5mm Arial Bold",
-      "description_text_type": "2.5mm Arial",
       "heading_text_type": "2.5mm Arial Bold",
       "show_heading": true
     },
     "layout": {
-      "swatch_width_mm": 15,
-      "swatch_height_mm": 8,
-      "title_width_mm": 25,
-      "description_width_mm": 70,
-      "column_gap_mm": 4,
       "row_gap_mm": 3,
       "heading_gap_mm": 5
     },
@@ -27,6 +21,13 @@
       "anchor_x_mm": 20,
       "anchor_y_mm": 20,
       "prevent_duplicate_on_same_sheet": true
+    },
+    "builder": {
+      "seed_family_path": "PR Legend Seed.rfa",
+      "family_folder": "families",
+      "swatch_width_mm": 15,
+      "swatch_height_mm": 8,
+      "hatch_name_pattern": "{code}"
     }
   },
   "categories": [
@@ -38,9 +39,9 @@
     {"name": "Access and Maintenance", "revit_category": null},
     {"name": "Room Use", "revit_category": null},
     {"name": "Security Zone", "revit_category": null},
-    {"name": "Walls", "revit_category": "OST_Walls", "template_legend_name": "_TEMPLATE - WALL LEGEND"},
-    {"name": "Floors", "revit_category": "OST_Floors", "template_legend_name": "_TEMPLATE - FLOOR LEGEND"},
-    {"name": "Ceilings", "revit_category": "OST_Ceilings", "template_legend_name": "_TEMPLATE - CEILING LEGEND"},
-    {"name": "Doors", "revit_category": "OST_Doors", "template_legend_name": "_TEMPLATE - DOOR LEGEND"}
+    {"name": "Walls", "revit_category": "OST_Walls"},
+    {"name": "Floors", "revit_category": "OST_Floors"},
+    {"name": "Ceilings", "revit_category": "OST_Ceilings"},
+    {"name": "Doors", "revit_category": "OST_Doors"}
   ]
 }

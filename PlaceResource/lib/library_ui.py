@@ -1,76 +1,55 @@
 # -*- coding: utf-8 -*-
 """Dialog flows for library legends, shared by Legend Setup and Place Legend on Sheet.
 
-All dialogs run before any transaction. Model changes happen only in
-library_legend_service.build_library_legend.
+Rows come from the category's symbol family (one type per code). All dialogs run
+before any transaction. Model changes happen only in library_legend_service.
 """
 
 import dialogs
 from identity import find_library_legend, read_view_payload
-from legend_library import entries_for_codes, match_type_marks
+from legend_library import match_type_marks
 from library_legend_service import build_library_legend
 from reporting import alert_error, print_library_report
+from symbol_library import family_entries
 
 
-def category_entries(doc, library_settings, category):
-    """Return (entries, source label, notes) for a category.
-
-    A master legend linked in Settings is used when it still exists. Otherwise the Excel sheet.
-    """
-    import project_settings
-    from master_legend_service import read_master
-    notes = []
-    linked = project_settings.read(doc)["masters"].get(category)
-    if linked:
-        master = project_settings.master_for(doc, category)
-        if master is not None:
-            entries, master_notes = read_master(doc, master)
-            return entries, "master legend '{0}'".format(master.Name), master_notes
-        notes.append(
-            "The master legend linked to {0} was deleted. The Excel library is used. Relink it in Settings.".format(category)
-        )
-    if library_settings.get("library_error"):
-        notes.append(library_settings["library_error"])
-    return library_settings["library"].get(category) or [], "Excel library", notes
-
-
-def choose_category(library_settings, title="Legend Setup", prompt=None, doc=None):
-    """Return a category name, or None when cancelled."""
+def choose_category(doc, library_settings, title="Legend Setup", prompt=None):
+    """Return a category name, or None when cancelled. Each row shows its family and type count."""
     names = list(library_settings["categories"].keys())
-    masters = {}
-    if doc is not None:
-        import project_settings
-        masters = project_settings.read(doc)["masters"]
     labels = []
+    details = []
     for name in names:
-        if name in masters:
-            labels.append("{0}  (master legend in the model)".format(name))
-            continue
-        count = len(library_settings["library"].get(name) or [])
-        labels.append("{0}  ({1} row{2} in the Excel library)".format(name, count, "" if count == 1 else "s"))
+        config = library_settings["categories"][name]
+        entries, problems = family_entries(doc, config)
+        labels.append(name)
+        if problems:
+            details.append("family '{0}' not loaded".format(config["family_name"]))
+        else:
+            details.append("{0} type{1} in '{2}'".format(len(entries), "" if len(entries) == 1 else "s", config["family_name"]))
     index = dialogs.choose_from_list(
-        title, labels, prompt=prompt or "Choose the legend category.", button_text="Next"
+        title, labels, prompt=prompt or "Choose the legend category.", button_text="Next", details=details
     )
     return None if index is None else names[index]
 
 
-def choose_rows(category, entries, preselected_codes, prompt, source="Excel library", notes=None):
-    """Return the ticked library entries (library order), or None when cancelled."""
+def choose_rows(doc, config, preselected_codes, prompt):
+    """Return the ticked entries (family order), or None when cancelled or the family is unusable."""
+    entries, problems = family_entries(doc, config)
+    if problems:
+        dialogs.alert("\n".join(problems), title="Legend library")
+        return None
     if not entries:
-        if source == "Excel library":
-            message = ("The '{0}' sheet of the Excel library has no rows. Add rows (Code, Description, Graphic, "
-                       "Filled Region Type), save the workbook, and run the command again.").format(category)
-        else:
-            message = ("No rows were found in the {0}. Each row needs the Type Mark text on the far left, "
-                       "then a graphic, then the description.").format(source)
-        if notes:
-            message = "{0}\n\n{1}".format(message, "\n".join(notes[:6]))
-        dialogs.alert(message, title="Legend library")
+        dialogs.alert(
+            "Family '{0}' has no types. Add one type per code (type name = Type Mark, e.g. IWS-105).".format(
+                config["family_name"]
+            ),
+            title="Legend library",
+        )
         return None
     wanted = set(code.strip().lower() for code in preselected_codes or [])
     preselected = [index for index, entry in enumerate(entries) if entry.code.strip().lower() in wanted]
     indexes = dialogs.choose_many_from_list(
-        "{0} legend rows".format(category),
+        "{0} legend rows".format(config["name"]),
         [entry.label() for entry in entries],
         preselected=preselected,
         prompt=prompt,
@@ -82,28 +61,28 @@ def choose_rows(category, entries, preselected_codes, prompt, source="Excel libr
 
 
 def run_setup(doc, library_settings):
-    """Legend Setup: category, rows, then create or update the master legend. Returns the report or None."""
-    category = choose_category(library_settings, doc=doc)
+    """Legend Setup: category, rows, then create or update the category legend (not tied to a sheet). Returns the report or None."""
+    category = choose_category(doc, library_settings)
     if category is None:
         return None
     config = library_settings["categories"][category]
-    entries, source, notes = category_entries(doc, library_settings, category)
     existing = find_library_legend(doc, category, None)
     stored = (read_view_payload(existing) or {}).get("codes") if existing is not None else None
-    preselected = stored if stored is not None else [entry.code for entry in entries]
+    if stored is None:
+        entries, _problems = family_entries(doc, config)
+        stored = [entry.code for entry in entries]
     chosen = choose_rows(
-        category, entries, preselected,
-        "Rows from the {0}. {1}".format(
-            source,
-            "Ticked: the rows already in '{0}'.".format(existing.Name) if existing is not None else "All rows start ticked.",
+        doc, config, stored,
+        "Types of family '{0}'. {1}".format(
+            config["family_name"],
+            "Ticked: the rows already in '{0}'.".format(existing.Name) if existing is not None else "All types start ticked.",
         ),
-        source=source, notes=notes,
     )
     if not chosen:
         return None
-    if not _confirm(category, config, chosen, existing, source):
+    if not _confirm(category, config, chosen, existing):
         return None
-    if not _ensure_text(doc, config, chosen):
+    if not _ensure_text(doc, config):
         return None
     report = build_library_legend(doc, config, chosen, sheet=None, legend_view=existing)
     print_library_report(report)
@@ -117,27 +96,25 @@ def run_sheet_legend(doc, uidoc, sheet, category, library_settings):
     from collectors import type_marks_for_source
     from placement_service import interactive_place, legend_viewport_on_sheet, sheet_label
     config = library_settings["categories"][category]
-    entries, source, notes = category_entries(doc, library_settings, category)
     existing = find_library_legend(doc, category, sheet)
     if existing is not None:
         preselected = (read_view_payload(existing) or {}).get("codes") or []
         why = "Ticked: the rows already in '{0}'.".format(existing.Name)
     elif config.get("revit_category"):
+        entries, _problems = family_entries(doc, config)
         marks = type_marks_for_source(doc, sheet, config["revit_category"], config["source_view_types"])
         preselected = match_type_marks(entries, marks)
-        why = "Ticked: library codes that match a Type Mark in the views on this sheet ({0} found).".format(
-            len(preselected)
-        )
+        why = "Ticked: types that match a Type Mark in the views on this sheet ({0} found).".format(len(preselected))
     else:
         preselected = []
         why = "Tick the rows that apply to this sheet."
     chosen = choose_rows(
-        category, entries, preselected, "Rows from the {0}. {1} Add or remove rows as needed.".format(source, why),
-        source=source, notes=notes,
+        doc, config, preselected,
+        "Types of family '{0}'. {1} Add or remove rows as needed.".format(config["family_name"], why),
     )
     if not chosen:
         return None
-    if not _ensure_text(doc, config, chosen):
+    if not _ensure_text(doc, config):
         return None
     report = build_library_legend(doc, config, chosen, sheet=sheet, legend_view=existing)
     if report["status"] in ("created", "updated"):
@@ -158,32 +135,22 @@ def run_sheet_legend(doc, uidoc, sheet, category, library_settings):
     return report
 
 
-def _ensure_text(doc, config, chosen):
-    """Check the text style before any change. Master rows only need it for the heading."""
+def _ensure_text(doc, config):
+    """The heading is the only text the tool writes; the family draws everything else."""
     from ui_service import ensure_text_style
     styles = config["styles"]
-    if chosen and chosen[0].source == "revit":
-        names = [styles["heading_text_type"]] if styles.get("show_heading") else []
-    else:
-        names = [styles["title_text_type"], styles["description_text_type"]]
-        if styles.get("show_heading"):
-            names.append(styles["heading_text_type"])
-    return not names or ensure_text_style(doc, names)
+    if not styles.get("show_heading"):
+        return True
+    return ensure_text_style(doc, [styles["heading_text_type"]])
 
 
-def _confirm(category, config, chosen, existing, source):
-    lines = []
-    if chosen and chosen[0].source == "revit":
-        lines.append("Rows: {0}, copied from the {1} (Type Mark left out)".format(len(chosen), source))
-    else:
-        regions = sum(1 for entry in chosen if entry.graphic == "region")
-        lines.append("Rows: {0} ({1} hatch, {2} legend component) from the Excel library".format(
-            len(chosen), regions, len(chosen) - regions
-        ))
-        lines.append("Template: {0}".format(config["template_legend_name"]))
-        lines.append("Scale: 1:{0}".format(config["scale"]))
-    lines.insert(1, "Existing legend: {0}".format(existing.Name if existing is not None else "None, a new one will be made"))
-    content = "\n".join(lines)
+def _confirm(category, config, chosen, existing):
+    content = "\n".join([
+        "Rows: {0} type(s) of family '{1}'".format(len(chosen), config["family_name"]),
+        "Existing legend: {0}".format(existing.Name if existing is not None else "None, a new one will be made"),
+        "Template legend: {0}".format(config["template_legend_name"]),
+        "Scale: 1:{0}".format(config["scale"]),
+    ])
     choice = dialogs.choose_command(
         "Legend Setup",
         "{0} the {1} legend?".format("Update" if existing is not None else "Create", category),
@@ -198,3 +165,70 @@ def _view_by_id(doc, value):
         return None
     from version_adapter import make_element_id
     return doc.GetElement(make_element_id(value))
+
+
+def run_build_family(doc, library_settings):
+    """Build Legend Family: category, codes, then create/save/load the symbol family. Returns the report or None."""
+    import os
+    import family_builder
+    from reporting import print_family_report
+    category = choose_category(
+        doc, library_settings, title="Build Legend Family",
+        prompt="Choose the category whose legend family to build or rebuild.",
+    )
+    if category is None:
+        return None
+    config = library_settings["categories"][category]
+    if config.get("revit_category"):
+        rows = family_builder.model_rows(doc, config)
+        source = "model types with a Type Mark"
+    else:
+        rows = family_builder.region_type_rows(doc)
+        source = "Filled Region Types in this model"
+    if not rows:
+        dialogs.alert("No {0} were found for {1}.".format(source, category), title="Build Legend Family")
+        return None
+    current, problems = family_entries(doc, config)
+    current_codes = set(entry.code.strip().lower() for entry in current) if not problems else set()
+    preselected = [index for index, row in enumerate(rows) if not current_codes or row["code"].strip().lower() in current_codes]
+    labels = []
+    for row in rows:
+        text = row["code"]
+        if row.get("description"):
+            text = "{0}  —  {1}".format(text, row["description"])
+        if row.get("source") and row["source"] != "Filled Region Type":
+            text = "{0}   ({1})".format(text, row["source"])
+        labels.append(text)
+    indexes = dialogs.choose_many_from_list(
+        "Build {0}".format(config["family_name"]),
+        labels,
+        preselected=preselected,
+        prompt="Codes from the {0}. Each ticked code becomes one family type. {1}".format(
+            source,
+            "Ticked: the types already in the family." if current_codes else "All start ticked.",
+        ),
+        button_text="Continue",
+    )
+    if not indexes:
+        return None
+    chosen = [rows[index] for index in indexes]
+    seed = family_builder.seed_path(config)
+    content = "\n".join([
+        "Types: {0}".format(len(chosen)),
+        "Seed family: {0}".format(seed or "not found, the family will have hatches but no text"),
+        "Saved to: {0}".format(os.path.join(family_builder.family_folder(config), config["family_name"] + ".rfa")),
+        "Hatch per type: the Filled Region Type named '{0}'".format(config["builder"]["hatch_name_pattern"]),
+    ])
+    choice = dialogs.choose_command(
+        "Build Legend Family",
+        "{0} family '{1}'?".format("Rebuild" if current_codes else "Build", config["family_name"]),
+        [("build", "{0} and load the family".format("Rebuild" if current_codes else "Build"))],
+        content=content,
+    )
+    if choice != "build":
+        return None
+    report = family_builder.build_family(doc, config, chosen)
+    print_family_report(report)
+    if report["errors"]:
+        alert_error("Build Legend Family", "\n".join(report["errors"]))
+    return report

@@ -117,7 +117,7 @@ def _place_from_sheet(doc, uidoc, sheet, settings):
         sheet_label(sheet)
     )
     if library_error:
-        prompt = "The Excel legend library could not be loaded, so only the type legend is offered. {0}".format(
+        prompt = "The legend library settings could not be loaded, so only the type legend is offered. {0}".format(
             library_error
         )
     chosen = choose_many_from_list("Place Legend on Sheet", labels, preselected=preselected, prompt=prompt)

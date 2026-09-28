@@ -3,33 +3,27 @@
 
 One DataStorage element carries an Extensible Storage entity with a JSON payload:
 
-    {"text_type": "<TextNoteType name>",
-     "masters": {"<category>": "<master legend UniqueId>"}}
+    {"text_type": "<TextNoteType name>"}
 
-The settings travel with the model, so every project keeps its own text style and
-master legend links. Do not change the schema GUID.
+The setting travels with the model, so every project keeps its own text style.
+Do not change the schema GUID. Keys from older versions (e.g. "masters") are ignored.
 """
 
 import json
 
 SETTINGS_SCHEMA_GUID = "5b7e2d94-3a1c-4f08-9e6b-2c4d8a1f7e35"
 SETTINGS_SCHEMA_NAME = "PRLegendProjectSettings"
-_EMPTY = {"text_type": None, "masters": {}}
+_EMPTY = {"text_type": None}
 
 
 def normalize(data):
     """Return a clean settings dict whatever was stored."""
-    result = {"text_type": None, "masters": {}}
+    result = {"text_type": None}
     if not isinstance(data, dict):
         return result
     text_type = data.get("text_type")
     if isinstance(text_type, str) and text_type.strip():
         result["text_type"] = text_type.strip()
-    masters = data.get("masters")
-    if isinstance(masters, dict):
-        for category, unique_id in masters.items():
-            if isinstance(category, str) and isinstance(unique_id, str) and unique_id:
-                result["masters"][category] = unique_id
     return result
 
 
@@ -61,24 +55,10 @@ def text_type_name(doc):
     return read(doc)["text_type"]
 
 
-def master_for(doc, category):
-    """The linked master legend view for a category, or None when unlinked or deleted."""
-    unique_id = read(doc)["masters"].get(category)
-    if not unique_id:
-        return None
-    view = doc.GetElement(unique_id)
-    return view
-
-
 def describe(data):
     """Short text for dialogs."""
     data = normalize(data)
-    lines = ["Legend text style: {0}".format(data["text_type"] or "not set (settings file is used)")]
-    if data["masters"]:
-        lines.append("Linked master legends: {0}".format(", ".join(sorted(data["masters"]))))
-    else:
-        lines.append("Linked master legends: none (Excel library is used)")
-    return "\n".join(lines)
+    return "Legend text style: {0}".format(data["text_type"] or "not set (settings file is used)")
 
 
 def _storage(doc, create):

@@ -7,7 +7,7 @@ Requires the pyRevit CPython 3 engine. IronPython is not supported.
 
 __title__ = "Legend\nSettings"
 __doc__ = (
-    "Choose the legend text style, link master legends, validate the settings file, "
+    "Choose the legend text style, validate the settings file, "
     "or choose a project-specific JSON file."
 )
 __author__ = "Place Resource"
@@ -65,7 +65,7 @@ from configuration import (
 from errors import LegendToolError
 from logging_service import get_logger
 from reporting import alert_error
-from ui_service import choose_settings_action, choose_text_type, link_master_legends, pick_settings_file
+from ui_service import choose_settings_action, choose_text_type, pick_settings_file
 
 LOGGER = get_logger("legend_settings")
 
@@ -77,11 +77,6 @@ def main():
         name = choose_text_type(revit.doc)
         if name:
             alert("Legend text will use '{0}' in this model.".format(name), title="Legend Settings")
-    elif action == "Link master legends":
-        from legend_library import category_names
-        from project_settings import describe, read
-        link_master_legends(revit.doc, category_names())
-        alert(describe(read(revit.doc)), title="Legend Settings")
     elif action == "Validate configuration":
         _validate(resolve_settings_path())
     elif action == "Choose configuration file":

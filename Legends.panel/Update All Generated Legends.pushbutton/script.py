@@ -81,7 +81,7 @@ def main():
         "Update {0} type legend(s) and {1} library legend(s)?".format(len(legends), len(library_legends)),
         content="Legends whose content is unchanged are skipped. Viewport positions are preserved. "
                 "Deleted source views and sheets are reported and skipped. Library legends are rebuilt "
-                "from their stored rows and the current Excel library.",
+                "from their stored rows and the current symbol families.",
         yes_label="Update the legends",
         no_label="Cancel",
     )

@@ -8,7 +8,8 @@ pyRevit panel that builds legends from the types visible in the active view.
 Legends.panel/        pyRevit panel. Copy into any .tab folder, e.g. MyTool.extension/Bham-Tools.Tab/
 PlaceResource/
     lib/              Python modules used by the buttons (required)
-    config/           legends.json, parameter_aliases.json, schema.json, library_legends.json, legend_library.xlsx (required)
+    config/           legends.json, parameter_aliases.json, schema.json, library_legends.json (required)
+                      families/  seed family and built legend families (.rfa)
     tests/            unit tests, run outside Revit (not deployed)
 .claude/skills/       Claude Code skills (pyrevit, revit-api). Not deployed
 ```
@@ -73,112 +74,78 @@ Shift-click **Legend Settings** to pick a different JSON file for the project. T
 
 Open **Place Resources → Settings → Choose legend text style** and pick any text note type in the project. The choice is saved in the Revit model, so each project keeps its own.
 
-- It is used for all text the tool writes: type-legend labels and headers, and library legend titles, descriptions and headings.
+- It is used for the text the tool writes itself: type-legend labels and headers, and library legend headings.
 - Without a saved style, the names in the settings files are used (`2.5mm Arial` by default).
-- If neither exists, the tool asks you to pick a style before it changes anything, instead of stopping with an error.
+- If neither exists, the tool asks you to pick a style before it changes anything.
 
-## Library legends (Legend Setup)
+## Library legends: symbol families
 
-Each category takes its rows from one of two sources:
+The library lives in Revit as **one Generic Annotation family per category**, for example `PR Legend - Walls` or `PR Legend - Fire Strategy`:
 
-- **A master legend in the Revit model** (recommended for office standards), when one is linked in Settings.
-- **The Excel library** otherwise.
+- **One family type per code.** The type name is the Type Mark, e.g. `IWS-105`.
+- **Each type draws everything for its row:** the hatch swatch, the code and the description.
+- **Changes flow through:** edit or reload the family and every legend using it updates, without running the tool.
 
-### Master legends in the model
+### Seed family (make once)
 
-1. Draw one legend per category, for example `MASTER - Walls`. For each row, left to right:
-   - the **Type Mark as a text note** (e.g. `IWS-105`), always in the left-most column
-   - the graphic: filled region, detail item, detail lines or legend component
-   - the description text
-2. Open **Settings → Link master legends**, choose the category, then choose its master legend. Choose "Use the Excel library" to unlink.
-3. **Legend Setup** and **Place Legend on Sheet** now list the master's rows by Type Mark.
-   - Selected rows are copied into the generated legend **without the Type Mark**: graphic and description, formatted exactly as in the master.
-   - The new legend keeps the master's scale.
+The Revit API cannot create labels, so **Build Legend Family** starts from a seed family you make once:
 
-How rows are read:
+1. New family → **Generic Annotation** (Metric).
+2. Add two **type** text parameters: `Code` and `Description`.
+3. Place a **label** for `Code` and a label for `Description`, to the right of the origin. The swatch is drawn from the origin 15 mm to the right and 8 mm down, so start the labels at about 20 mm.
+4. Save it as `PlaceResource\config\families\PR Legend Seed.rfa`.
 
-- The Type Mark column is the text notes lined up with the left-most text (2 mm tolerance on paper).
-- Everything else whose centre is on the same line, to the right of the Type Mark, belongs to that row. The row reaches halfway to the next Type Mark.
-- A line in the left column with no graphic (e.g. a heading "WALL TYPES") is treated as a heading and skipped.
-- A Type Mark used twice keeps the upper row, and the report says so.
-- Dimensions are not copied.
+Without a seed, the builder still works but the family shows the hatch only.
 
-**Update All** re-reads the master and rebuilds legends whose rows changed. **Audit** reports Type Marks that are no longer in the master, and a master that was deleted.
+### Build Legend Family
 
-
-A library legend lists rows from an Excel workbook. Each row shows a graphic, a title and a description. For example: a hatch swatch, `IWS-105`, and "Internal wall system 105".
-
-### The Excel library (when no master legend is linked)
-
-`PlaceResource/config/legend_library.xlsx` has one worksheet per category. The sheet name must match the category name in `library_legends.json`:
-
-- Fire Strategy, Accessibility, Thermal Envelope, Acoustic, Bollards and Barrier Protection, Access and Maintenance, Room Use, Security Zone
-- Walls, Floors, Ceilings, Doors
-
-Columns (header in the first row, any order, not case-sensitive):
-
-| Column | Required | Meaning |
-| --- | --- | --- |
-| Code | Yes | Unique per sheet, e.g. `IWS-105`. For Walls, Floors, Ceilings and Doors it is matched to the **Type Mark** of model types. |
-| Title | No | Shown as the title. Defaults to Code. |
-| Description | No | Shown next to the title. Wraps in the description column. |
-| Graphic | No | `Region` (default) draws a filled region swatch. `Component` places a legend component of the model type whose Type Mark equals Code. |
-| Filled Region Type | For Region rows | Name of a Filled Region Type in the model. This is the hatch/colour. |
-| Notes | No | Ignored by the tool. |
-
-- The sample workbook has example rows marked "Example row". Replace them with your office standard.
-- After editing, **save in Excel as .xlsx**. The tool reads the values Excel saved and does not evaluate formulas. .xls and .xlsb files are not read.
-- The workbook is read with the Python standard library. No add-in, no Excel automation, nothing sent anywhere.
-- To use a shared library, set `library_file` in `library_legends.json` to its full path.
-
-### library_legends.json
-
-It sets, per category:
-
-- `revit_category`: `OST_Walls` etc., or `null` for zone categories
-- `template_legend_name`
-- legend name patterns
-- scale, text note types and layout in **paper millimetres**
-- `sheet_placement`
-
-Values in `defaults` apply to every category unless a category overrides them.
-
-### Revit prerequisites
-
-- **Template legend:** a legend named as in `template_legend_name`. `_TEMPLATE - LIBRARY LEGEND` is the default; walls, floors, ceilings and doors use their own template names. The legend is duplicated empty, so its contents are never copied.
-  - For **Component** rows, the category's template must contain one legend component of that category, used as a temporary seed.
-- **Filled Region Types:** every name used in the Excel library must exist in the project (Manage > Additional Settings > Filled Region Types). Missing names are listed, together with the names that do exist, before anything changes.
-- **Text note types:** the ones named in `library_legends.json` must exist (default `2.5mm Arial` / `2.5mm Arial Bold`).
+1. Run **Place Resources → Build Legend Family** and choose a category.
+2. Tick the codes:
+   - **Walls, Floors, Ceilings, Doors:** every Type Mark on model types. The description comes from the model type's `Description` (or `Type Comments`).
+   - **Zone categories:** the project's Filled Region Types. The code is the region type name.
+3. The builder makes one type per code, sets `Code` and `Description`, and draws one swatch per hatch.
+   - The hatch is the Filled Region Type named like the code (`hatch_name_pattern`, default `{code}`).
+   - Each swatch has a `Show <hatch>` Yes/No type parameter, so every type shows only its own hatch.
+   - Codes without a matching Filled Region Type are listed, and those types show no hatch.
+4. The family is saved to `PlaceResource\config\families\<family name>.rfa` and loaded into the model. If it was already loaded, it is reloaded, so existing legends update.
+5. You can also make or edit the family by hand. The tool only needs: type name = code, and a `Description` type parameter for the lists.
 
 ### Legend Setup
 
-1. Run **Place Resources → Legend Setup**.
-2. Choose a category.
-3. Tick the rows to include. All rows start ticked for a new legend; an existing legend starts with its current rows.
-4. Confirm. The master legend `<Category> LEGEND` is created or updated.
-
-Every row gets a graphic, a title and a description, stacked top to bottom under an optional category heading.
+1. Run **Place Resources → Legend Setup** and choose a category. The list shows each category's family and how many types it has.
+2. Tick the types. A new legend starts with all ticked; an existing one starts with its current rows.
+3. Confirm. The legend `<Category> LEGEND` is created or updated: one symbol per type, stacked, under a heading in your text style.
 
 ### Place Legend on Sheet (library legends)
 
-On a sheet, the command first asks **which legends this sheet shows**. The list has the type legend from the sheet's views, plus one line per library category; categories already made for this sheet start ticked.
+On a sheet, first choose which legends the sheet shows. For each library category:
 
-For each library category you tick:
+- **Walls, Floors, Ceilings, Doors:** types whose name matches a Type Mark in the sheet's plans, sections or elevations start ticked. Add or remove as needed.
+- **Result:** the sheet legend `<Category> LEGEND - <sheet number>` is created or updated and placed on the sheet. An existing one keeps its position.
 
-- **Walls, Floors, Ceilings, Doors:** rows whose Code matches a Type Mark visible in the sheet's plans, sections or elevations start ticked. Add or remove rows as needed.
-- **Zone categories:** tick the rows that apply.
-- **Result:** a sheet legend `<Category> LEGEND - <sheet number>` is created or updated and placed on the sheet. If it is already there, its position is kept.
+**Update All** adds or removes rows only when the stored rows or the family's types changed; graphics update through the family itself. **Audit** reports:
 
-**Update All** rebuilds library legends from their stored rows and the current Excel file. It skips legends whose content hasn't changed. **Audit** lists:
+- types deleted from the family
+- a family that is not loaded
+- Type Marks on the sheet that have a family type but are not in the legend
 
-- codes no longer in Excel
-- Filled Region Types missing from the model
-- Type Marks on the sheet that are in the library but not in the legend
+Library legends made by earlier versions (Excel or master legends) are rebuilt with the family on the next Update All.
+
+### library_legends.json (schema 2.0)
+
+Per category, with shared `defaults`:
+
+- `family_name` (default `PR Legend - {category}`) and `description_parameter`
+- `revit_category` (for Type Mark matching; `null` for zone categories) and `source_view_types`
+- `template_legend_name`, the name patterns and `scale`
+- `styles.heading_text_type` / `show_heading`, and `layout.row_gap_mm` / `heading_gap_mm`
+- `sheet_placement`
+- `builder`: `seed_family_path`, `family_folder`, swatch size, `hatch_name_pattern`
 
 ### Not yet confirmed in Revit
 
-- `FilledRegion.Create` in a legend view, and legend `Duplicate` without detailing.
-- Text note width: the tool treats `TextNote.Width` as paper space, so `title_width_mm` / `description_width_mm` are sheet millimetres. **(verify)**
+- Placing annotation symbols in a legend with `NewFamilyInstance`.
+- Building a family through the API (parameters, filled regions with visibility parameters, types), and reloading an already loaded family.
 
 ## Prepare a template legend
 
@@ -238,7 +205,7 @@ Read-only. The output lists the source view, generated legend, definition, visib
 
 ### Settings
 
-Options: Choose legend text style, Link master legends, Validate configuration, Choose configuration file, Use the built-in configuration, Show configuration file location.
+Options: Choose legend text style, Validate configuration, Choose configuration file, Use the built-in configuration, Show configuration file location.
 
 
 Validates the JSON, chooses another settings file, returns to the built-in file, or shows the file location so you can open it yourself. Invalid text styles are reported when a legend command runs, before any transaction starts, and the message lists text types that do exist.
@@ -341,12 +308,12 @@ A failed create or update rolls back the whole transaction group. The completion
 | `transactions.py` | Transaction groups and rollback |
 | `reporting.py` | Output window text and links |
 | `ui_service.py` | Definition, commit, and settings dialogs |
-| `xlsx_reader.py` | Reads .xlsx cell values with `zipfile` + `xml.etree`. No extra package |
-| `legend_library.py` | Library settings, Excel row checks, master-legend row detection, Type Mark matching, row layout (pure Python) |
-| `master_legend_service.py` | Reads rows from a master legend in the model |
-| `project_settings.py` | Text style and master-legend links, saved in the model |
-| `library_legend_service.py` | Build, update, update-all and audit library legends |
-| `library_ui.py` | Legend Setup and sheet library legend dialog flows |
+| `legend_library.py` | Library settings (schema 2.0), Type Mark matching, row stacking (pure Python) |
+| `symbol_library.py` | Reads the category family's types from the model |
+| `family_builder.py` | Builds, saves and loads a category legend family |
+| `project_settings.py` | Legend text style, saved in the model |
+| `library_legend_service.py` | Place family symbols in legends; update-all and audit |
+| `library_ui.py` | Legend Setup, sheet library legends and Build Legend Family dialog flows |
 | `dialogs.py` | CPython-safe dialogs: Revit TaskDialog, a filterable Windows Forms list, file picker. `pyrevit.forms` is not used |
 | `logging_service.py` | pyRevit logger, or the standard logger in tests |
 | `errors.py` | Actionable exceptions |
@@ -395,27 +362,17 @@ Run these on a copy of a project. Record the Revit and pyRevit versions in the t
 - [ ] Seed view direction is kept when it already says Section, and a mismatch produces a warning without writing an integer.
 - [ ] `layer_reference_planes` left false creates no reference planes. A separate test model is used before turning it on.
 
-Text style and master legends:
+Text style and library families:
 
 - [ ] Settings → Choose legend text style, then Create/Update View Legend works in a project without `2.5mm Arial`.
-- [ ] Without a saved style or `2.5mm Arial`, Create/Update offers the picker, and cancelling changes nothing.
-- [ ] Link `MASTER - Walls`. Legend Setup lists its Type Marks, and the generated legend shows graphic + description without the Type Mark.
-- [ ] A master row using a filled region, a detail item and a legend component all copy. The filled region is not duplicated by its boundary lines.
-- [ ] A heading line in the master is not offered as a row.
-- [ ] Place Legend on a sheet pre-ticks Type Marks from the sheet's views using the master's rows.
-- [ ] Change a description in the master, run Update All: the generated legend updates. Delete the master: Update All skips with a clear reason.
-
-Library legends:
-
-- [ ] Legend Setup, Walls: a Region row (IWS-105) and a Component row. The swatch, title and description line up. The component shows the wall type with that Type Mark.
-- [ ] Legend Setup, Fire Strategy: regions only, using `_TEMPLATE - LIBRARY LEGEND`.
-- [ ] A Filled Region Type name in Excel that is not in the model: the error lists it before any change.
-- [ ] A text note that wraps: the description column width looks right on the sheet (confirms TextNote.Width is paper space).
+- [ ] Make the seed family, then Build Legend Family for Walls: one type per Type Mark, `Code`/`Description` filled, each type shows only its own hatch.
+- [ ] Build again after changing a wall type's Description: the family reloads and existing legends show the new text.
+- [ ] Zone category (Fire Strategy): Build Legend Family lists Filled Region Types; the family shows each hatch.
+- [ ] Legend Setup, Walls: one symbol per ticked type, stacked under the heading.
 - [ ] Place Legend on a sheet with a plan and a section: wall Type Marks from both views are ticked.
-- [ ] Run again after moving the legend on the sheet: the position is kept, and a manual note in the legend survives.
-- [ ] Edit a description in Excel, save, run Update All: only that legend changes.
-- [ ] Excel still open with the workbook: the tool can read it.
-- [ ] Undo after a Setup removes the whole change.
+- [ ] Move the legend on the sheet and update: the position is kept, and a manual note in the legend survives.
+- [ ] Delete a family type, run Update All / Audit: the missing type is reported.
+- [ ] Undo after Legend Setup removes the whole change.
 
 ## Troubleshooting
 

@@ -129,7 +129,6 @@ def pick_sheet_point(uidoc):
 
 SETTINGS_ACTIONS = (
     "Choose legend text style",
-    "Link master legends",
     "Validate configuration",
     "Choose configuration file",
     "Use the built-in configuration",
@@ -138,8 +137,7 @@ SETTINGS_ACTIONS = (
 
 
 SETTINGS_DETAILS = (
-    "text note type used for all legend text; saved in this Revit model",
-    "use a legend drawn in this model as the standard for a category",
+    "text note type for legend headings and type-legend text; saved in this Revit model",
     "check the settings file and list its legend definitions",
     "use a project-specific settings file (JSON)",
     "go back to the settings file shipped with the tool",
@@ -149,11 +147,11 @@ SETTINGS_DETAILS = (
 
 def choose_settings_action(doc=None):
     """Return the settings command the user picked, or None."""
-    prompt = "Choose a setting, then press Open. Text style and master legends are saved in this Revit model."
+    prompt = "Choose a setting, then press Open. The text style is saved in this Revit model."
     if doc is not None:
         import project_settings
         try:
-            prompt = "{0}\n{1}".format(prompt, project_settings.describe(project_settings.read(doc)).replace("\n", "   |   "))
+            prompt = "{0}\n{1}".format(prompt, project_settings.describe(project_settings.read(doc)))
         except Exception:
             pass
     index = dialogs.choose_from_list(
@@ -179,7 +177,7 @@ def choose_text_type(doc, reason=None):
         return None
     current = project_settings.read(doc)["text_type"]
     labels = ["{0}{1}".format(name, "   (current)" if name == current else "") for name in names]
-    prompt = "Choose the text style for legend text (titles, descriptions, headings)."
+    prompt = "Choose the text style for text the tool writes (legend headings and type-legend labels)."
     if reason:
         prompt = "{0} {1}".format(reason, prompt)
     index = dialogs.choose_from_list(
@@ -208,50 +206,6 @@ def ensure_text_style(doc, fallback_names):
         doc,
         reason="The text style in the settings file ({0}) is not in this project.".format(", ".join(names)),
     ) is not None
-
-
-def link_master_legends(doc, category_names):
-    """Link categories to master legends in the model, one at a time, until the user closes the list.
-
-    Returns the number of links changed.
-    """
-    from master_legend_service import candidate_master_legends
-    import project_settings
-    changed = 0
-    while True:
-        data = project_settings.read(doc)
-        labels = []
-        for category in category_names:
-            view = project_settings.master_for(doc, category)
-            if category in data["masters"] and view is None:
-                target = "linked legend was deleted"
-            else:
-                target = view.Name if view is not None else "Excel library"
-            labels.append("{0}   ->   {1}".format(category, target))
-        index = dialogs.choose_from_list(
-            "Link master legends", labels,
-            prompt="Choose a category to link to a master legend in this model. Close when done.",
-            button_text="Change",
-        )
-        if index is None:
-            return changed
-        category = category_names[index]
-        legends = candidate_master_legends(doc)
-        options = ["Use the Excel library (no master legend)"] + [view.Name for view in legends]
-        pick = dialogs.choose_from_list(
-            "Master legend for {0}".format(category), options,
-            prompt="Choose the legend that holds the {0} standard. Type Mark on the left of each row, "
-                   "then the graphic, then the description.".format(category),
-            button_text="Link",
-        )
-        if pick is None:
-            continue
-        if pick == 0:
-            data["masters"].pop(category, None)
-        else:
-            data["masters"][category] = legends[pick - 1].UniqueId
-        project_settings.save(doc, data, "Place Resource: link master legend")
-        changed += 1
 
 
 def pick_settings_file():

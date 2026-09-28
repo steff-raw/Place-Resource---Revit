@@ -175,7 +175,7 @@ def iter_generated_legends(doc, role=ROLE_VIEW_LEGEND):
     """Yield (view, payload) for tool-managed legends of one role.
 
     ``generated_legend`` is the view/sheet type legend. ``library_legend`` is built
-    from the Excel library. Pass role=None for both.
+    from the category symbol families. Pass role=None for both.
     """
     from version_adapter import get_db
     DB = get_db()

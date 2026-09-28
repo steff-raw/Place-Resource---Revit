@@ -1,15 +1,16 @@
 #! python3
 # -*- coding: utf-8 -*-
-"""Build a legend from the category's symbol family.
+"""Build or rebuild the legend symbol family for a category.
 
-Choose a category, tick the family types (one per code, e.g. IWS-105), and the
-tool places one symbol per type in the category legend, stacked under a heading.
+One Generic Annotation family per category (e.g. "PR Legend - Walls"), one type
+per code: type name = Type Mark, Code and Description type parameters, and the
+hatch swatch of the Filled Region Type named as the code.
 """
 
-__title__ = "Legend\nSetup"
+__title__ = "Build Legend\nFamily"
 __doc__ = (
-    "Create or update a library legend: choose a category (Walls, Fire Strategy, ...), "
-    "tick the types of its symbol family, and one symbol per type is placed in the legend."
+    "Build or rebuild the legend symbol family of a category from the model: one type per "
+    "Type Mark with its hatch and description. The family is saved and loaded into the model."
 )
 __author__ = "Place Resource"
 
@@ -58,19 +59,19 @@ from pyrevit import revit
 
 from errors import LegendToolError
 from legend_library import load_library_settings
-from library_ui import run_setup
+from library_ui import run_build_family
 from logging_service import get_logger
 from reporting import alert_error
 from validation import assert_project_document
 
-LOGGER = get_logger("legend_setup")
+LOGGER = get_logger("build_legend_family")
 
 
 def main():
-    """Load the library, then run the setup dialogs and build the legend."""
+    """Choose a category and codes, then build, save and load the family."""
     doc = revit.doc
     assert_project_document(doc)
-    run_setup(doc, load_library_settings())
+    run_build_family(doc, load_library_settings())
 
 
 if __name__ == "__main__":
@@ -78,7 +79,7 @@ if __name__ == "__main__":
         main()
     except LegendToolError as error:
         LOGGER.error("%s", error)
-        alert_error("Legend Setup", str(error))
+        alert_error("Build Legend Family", str(error))
     except Exception as error:
-        LOGGER.exception("Legend Setup failed")
-        alert_error("Legend Setup", "Unexpected failure: {0}".format(error))
+        LOGGER.exception("Build Legend Family failed")
+        alert_error("Build Legend Family", "Unexpected failure: {0}".format(error))
