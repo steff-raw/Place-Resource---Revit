@@ -61,6 +61,12 @@ Each button looks for a folder that contains `lib/legend_service.py`, in this or
 
 User settings, the settings pointer file, and any JSON registry fallback are written under that folder's `config`.
 
+### Updating the code
+
+- **After replacing files in `PlaceResource\lib` or any `script.py`:** just click the button again. Each click loads the current code. Do **not** use pyRevit Reload.
+- **Why:** with the CPython engine, Reload breaks pyRevit until Revit restarts ("Revit could not complete the external command").
+- **When to restart Revit instead of reloading:** only when buttons are added, removed or renamed, or a `bundle.yaml` changes.
+
 Shift-click **Legend Settings** to pick a different JSON file for the project. The chosen path is stored in `config/user_settings_path.txt`.
 
 ## Legend text style

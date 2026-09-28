@@ -29,6 +29,13 @@ def _find_lib():
         if os.path.isfile(os.path.join(lib, "legend_service.py")):
             if lib not in sys.path:
                 sys.path.insert(0, lib)
+            # Load the current lib code on every click. Edited files then work without
+            # a pyRevit Reload, which breaks the CPython engine until Revit restarts.
+            prefix = os.path.normcase(lib + os.sep)
+            for name, module in list(sys.modules.items()):
+                path = getattr(module, "__file__", None) or ""
+                if path and os.path.normcase(os.path.abspath(path)).startswith(prefix):
+                    del sys.modules[name]
             return lib
     raise ImportError(
         "Place Resource lib folder was not found. Copy 'lib' and 'config' to "

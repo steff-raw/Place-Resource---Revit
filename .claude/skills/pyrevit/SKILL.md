@@ -53,6 +53,7 @@ Rules:
 
 ## CPython / pythonnet pitfalls
 
+- **Never rely on pyRevit Reload** with the CPython engine: it leaves the engine broken until Revit restarts. `_find_lib()` drops cached `lib` modules on every click so edited code loads without a reload. Keep that block in every script.
 - **No Python callbacks into Revit.** Don't hand Revit a Python class that implements a .NET interface (`IFailuresPreprocessor`, `IUpdater`, `ISelectionFilter`, `IExternalEventHandler`) and don't attach Python event handlers. Under the pyRevit CPython engine these callbacks can abort the command with "PythonEngine is not initialized". Read warnings with `doc.GetWarnings()` before/after the transaction (`lib/transactions.py`) instead.
 - **Generics**: `List[DB.ElementId]()`, `entity.Get[String](field)`, `entity.Set[String](field, value)`.
 - **out/ref parameters** come back as a tuple: `ok, value = obj.TryGet(...)`.
