@@ -43,8 +43,7 @@ def _find_lib():
 
 _find_lib()
 
-from pyrevit import forms
-
+from dialogs import alert
 from configuration import (
     default_settings_path,
     load_settings,
@@ -70,7 +69,7 @@ def main():
             return
         load_settings(path)
         set_settings_override(path)
-        forms.alert("Legend settings will now be read from:\n{0}".format(path), title="Legend Settings")
+        alert("Legend settings will now be read from:\n{0}".format(path), title="Legend Settings")
     elif action == "Use the built-in configuration":
         set_settings_override(None)
         _validate(default_settings_path())
@@ -92,14 +91,14 @@ def _validate(path):
         settings["alias_path"],
         names,
     )
-    forms.alert(message, title="Legend Settings")
+    alert(message, title="Legend Settings")
 
 
 def _open(path):
     if os.name == "nt":
         os.startfile(path)  # pylint: disable=no-member
         return
-    forms.alert("Open this file in an editor:\n{0}".format(path), title="Legend Settings")
+    alert("Open this file in an editor:\n{0}".format(path), title="Legend Settings")
 
 
 if __name__ == "__main__":

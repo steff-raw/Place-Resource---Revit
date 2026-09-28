@@ -49,7 +49,7 @@ Rules:
 - **.NET interfaces** (`IFailuresPreprocessor`, `ISelectionFilter`, `IExternalEventHandler`): the class needs `__namespace__` and must be defined **once per Revit session**. The CPython engine is shared, so a second definition throws "duplicate type name". Cache the class on a module-level global or on `sys`.
 - **Generics**: `List[DB.ElementId]()`, `entity.Get[String](field)`, `entity.Set[String](field, value)`.
 - **out/ref parameters** come back as a tuple: `ok, value = obj.TryGet(...)`.
-- **`pyrevit.forms`** under CPython: `alert`, `SelectFromList`, `pick_file` and `CommandSwitchWindow` are the safest. `FlexForm` / WPF windows are the most fragile. Always keep a `forms.alert` fallback, as `ui_service.confirm_plan` does.
+- **`pyrevit.forms` does not work under CPython.** pyRevit replaces the whole module with stubs that raise `PyRevitCPythonNotSupported` (`alert`, `SelectFromList`, `CommandSwitchWindow`, `FlexForm`, `pick_file`, `ask_for_*`, `ProgressBar`, WPF windows). Use `lib/dialogs.py`: `alert`, `ask_yes_no`, `choose_command` (TaskDialog, max 4 options), `choose_from_list` (WinForms, filterable), `pick_file`. `pyrevit.script` (output window, logger, `linkify`) still works.
 - Enum to text: `value.ToString()`, not `str(value)`.
 
 ## Revit API pitfalls
@@ -101,6 +101,7 @@ python -m unittest discover -s tests -v
 
 - [ ] `#! python3` is the first line of every changed `script.py`
 - [ ] No `DB` import at module top level in `lib/`
+- [ ] No `pyrevit.forms` import; dialogs go through `lib/dialogs.py`
 - [ ] No dialog inside a transaction; failure rolls back the group
 - [ ] Created elements are marked; deletes go through `delete_managed_elements`
 - [ ] No whole-document collector inside a loop

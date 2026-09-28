@@ -43,9 +43,10 @@ def _find_lib():
 
 _find_lib()
 
-from pyrevit import forms, revit
+from pyrevit import revit
 
 from configuration import load_settings
+from dialogs import ask_yes_no
 from errors import LegendToolError
 from identity import iter_generated_legends
 from legend_service import update_all
@@ -64,28 +65,25 @@ def main():
     legends = list(iter_generated_legends(doc))
     if not legends:
         raise LegendToolError("This model has no tool-managed legends to update.")
-    accepted = forms.alert(
-        "Update {0} generated legend(s)? Legends whose content hash is unchanged are skipped. "
-        "Viewport positions are preserved. Source views that were deleted are reported and skipped.".format(
-            len(legends)
-        ),
-        title="Update All Generated Legends",
-        ok=False,
-        yes=True,
-        no=True,
+    accepted = ask_yes_no(
+        "Update All Generated Legends",
+        "Update {0} generated legend(s)?".format(len(legends)),
+        content="Legends whose content hash is unchanged are skipped. Viewport positions are preserved. "
+                "Source views that were deleted are reported and skipped.",
+        yes_label="Update the legends",
+        no_label="Cancel",
     )
     if not accepted:
         return
     allow_delete = True
     if _any_definition_confirms(settings):
-        allow_delete = bool(forms.alert(
-            "Remove managed entries for types that are no longer visible? "
-            "Manual notes and unmanaged annotation are not deleted.",
-            title="Remove obsolete legend entries",
-            ok=False,
-            yes=True,
-            no=True,
-        ))
+        allow_delete = ask_yes_no(
+            "Remove obsolete legend entries",
+            "Remove managed entries for types that are no longer visible?",
+            content="Manual notes and unmanaged annotation are not deleted.",
+            yes_label="Remove them",
+            no_label="Keep them",
+        )
     summary = update_all(doc, settings, {
         "allow_delete": allow_delete,
         "skip_if_unchanged": True,

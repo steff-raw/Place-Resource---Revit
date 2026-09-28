@@ -76,9 +76,9 @@ The tool never modifies the template view. It duplicates it, renames the duplica
 2. Run **Place Resources → Create / Update View Legend**.
 3. Choose Wall Type Legend, Fire-Rated Wall Legend, Acoustic Wall Legend, or Door Type Legend.
 4. Read the preview in the output window. It lists visible instances, unique types, exclusions, and an estimated size taken from the JSON spacing.
-5. Confirm the dialog. Uncheck **Create or update the legend** to leave the model unchanged.
+5. Pick **Create or update the legend**, **Create or update, then place it on a sheet**, or **Preview only** to leave the model unchanged.
 6. If types disappeared from the view, confirm or decline removal. Declining keeps those managed entries. Manual notes are never deleted.
-7. Optionally place the legend on a sheet from the same dialog.
+7. If you picked the sheet option, choose the sheet and pick a point.
 
 The command shows the source view, definition, instance count, unique type count, any existing generated legend, and the update mode before it commits.
 
@@ -201,6 +201,7 @@ A failed create or update rolls back the whole transaction group. The completion
 | `transactions.py` | Transaction groups and rollback |
 | `reporting.py` | Output window text and links |
 | `ui_service.py` | Definition, commit, and settings dialogs |
+| `dialogs.py` | CPython-safe dialogs: Revit TaskDialog, a filterable Windows Forms list, file picker. `pyrevit.forms` is not used |
 | `logging_service.py` | pyRevit logger, or the standard logger in tests |
 | `errors.py` | Actionable exceptions |
 

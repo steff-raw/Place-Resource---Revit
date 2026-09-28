@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Command dialogs. Revit stays unmodified until a dialog returns a commit choice."""
+"""Command dialogs. Revit stays unmodified until a dialog returns a commit choice.
 
-from logging_service import get_logger
+All dialogs go through ``dialogs``. ``pyrevit.forms`` is not available under CPython.
+"""
 
-LOGGER = get_logger("ui_service")
+import dialogs
 
 
 def choose_definition(definitions):
@@ -12,17 +13,16 @@ def choose_definition(definitions):
         return None
     if len(definitions) == 1:
         return definitions[0]
-    from pyrevit import forms
     labels = ["{0}  [{1}]".format(item["display_name"], item["id"]) for item in definitions]
-    selected = forms.SelectFromList.show(
+    index = dialogs.choose_from_list(
+        "Select a legend definition",
         labels,
-        title="Select a legend definition",
-        button_name="Use this legend",
-        multiselect=False,
+        prompt="Choose the legend to create or update for this view.",
+        button_text="Use this legend",
     )
-    if not selected:
+    if index is None:
         return None
-    return definitions[labels.index(selected)]
+    return definitions[index]
 
 
 def confirm_plan(source_view, definition, plan):
@@ -51,33 +51,39 @@ def confirm_plan(source_view, definition, plan):
         summary.append("Warnings before commit: {0}. Details are in the output window.".format(
             len(collection.warnings)
         ))
-    try:
-        return _flex_confirm(summary)
-    except Exception as ex:
-        LOGGER.warning("The detailed dialog was unavailable (%s). A yes/no prompt was used.", ex)
-        return _alert_confirm(summary)
+    choice = dialogs.choose_command(
+        "Create / Update View Legend",
+        "Create or update the legend for '{0}'?".format(source_view.Name),
+        [
+            ("apply", "Create or update the legend"),
+            ("apply_and_place", "Create or update, then place it on a sheet"),
+            ("preview", "Preview only", "Leave the model unchanged. The output window keeps the preview."),
+        ],
+        content="\n".join(summary),
+    )
+    if choice is None:
+        return None
+    return {
+        "apply_changes": choice in ("apply", "apply_and_place"),
+        "place_on_sheet": choice == "apply_and_place",
+    }
 
 
 def confirm_delete(type_labels):
     """Ask before obsolete managed entries are removed."""
-    from pyrevit import forms
     preview = "\n".join(type_labels[:20])
     extra = ""
     if len(type_labels) > 20:
         extra = "\n... and {0} more".format(len(type_labels) - 20)
-    return bool(forms.alert(
-        "Remove {0} legend entr{1} that are no longer visible in the source view?\n\n{2}{3}\n\n"
-        "Only tool-managed entries are removed. Manual notes stay.".format(
-            len(type_labels),
-            "y" if len(type_labels) == 1 else "ies",
-            preview,
-            extra,
+    return dialogs.ask_yes_no(
+        "Remove obsolete legend entries",
+        "Remove {0} legend entr{1} that are no longer visible in the source view?".format(
+            len(type_labels), "y" if len(type_labels) == 1 else "ies"
         ),
-        title="Remove obsolete legend entries",
-        ok=False,
-        yes=True,
-        no=True,
-    ))
+        content="{0}{1}\n\nOnly tool-managed entries are removed. Manual notes stay.".format(preview, extra),
+        yes_label="Remove them",
+        no_label="Keep them",
+    )
 
 
 def choose_named_item(title, items, label_for):
@@ -86,17 +92,11 @@ def choose_named_item(title, items, label_for):
         return None
     if len(items) == 1:
         return items[0]
-    from pyrevit import forms
     labels = [label_for(item) for item in items]
-    selected = forms.SelectFromList.show(
-        labels,
-        title=title,
-        button_name="Select",
-        multiselect=False,
-    )
-    if not selected:
+    index = dialogs.choose_from_list(title, labels)
+    if index is None:
         return None
-    return items[labels.index(selected)]
+    return items[index]
 
 
 def pick_sheet_point(uidoc):
@@ -113,58 +113,29 @@ def pick_sheet_point(uidoc):
         raise
 
 
+SETTINGS_ACTIONS = (
+    "Validate configuration",
+    "Choose configuration file",
+    "Use the built-in configuration",
+    "Open configuration file",
+)
+
+
 def choose_settings_action():
-    """Return the settings command the user picked."""
-    from pyrevit import forms
-    return forms.CommandSwitchWindow.show(
+    """Return the settings command the user picked, or None."""
+    return dialogs.choose_command(
+        "Legend Settings",
+        "Legend settings",
         [
-            "Validate configuration",
-            "Choose configuration file",
-            "Use the built-in configuration",
-            "Open configuration file",
+            (SETTINGS_ACTIONS[0], SETTINGS_ACTIONS[0], "Check the current JSON file and list its legends."),
+            (SETTINGS_ACTIONS[1], SETTINGS_ACTIONS[1], "Use a project-specific JSON file from now on."),
+            (SETTINGS_ACTIONS[2], SETTINGS_ACTIONS[2], "Go back to config/legends.json."),
+            (SETTINGS_ACTIONS[3], SETTINGS_ACTIONS[3], "Open the current JSON file in the default editor."),
         ],
-        message="Legend settings are stored in JSON. Python code does not contain office styles or spacing.",
+        footer="Office styles and spacing are stored in JSON, not in the Python code.",
     )
 
 
 def pick_settings_file():
     """Return a JSON path chosen by the user."""
-    from pyrevit import forms
-    return forms.pick_file(file_ext="json", title="Select the legend settings file")
-
-
-def _flex_confirm(summary_lines):
-    from pyrevit import forms
-    components = [forms.Label(line) for line in summary_lines]
-    components.extend([
-        forms.Separator(),
-        forms.CheckBox("apply_changes", "Create or update the legend", default=True),
-        forms.CheckBox("place_on_sheet", "Place the legend on a sheet after updating", default=False),
-        forms.Separator(),
-        forms.Button("Continue"),
-    ])
-    form = forms.FlexForm("Create / Update View Legend", components, width=560)
-    accepted = form.show()
-    if not accepted:
-        return None
-    values = getattr(form, "values", None) or {}
-    if not values:
-        return None
-    return {
-        "apply_changes": bool(values.get("apply_changes", True)),
-        "place_on_sheet": bool(values.get("place_on_sheet", False)),
-    }
-
-
-def _alert_confirm(summary_lines):
-    from pyrevit import forms
-    accepted = forms.alert(
-        "\n".join(summary_lines),
-        title="Create / Update View Legend",
-        ok=False,
-        yes=True,
-        no=True,
-    )
-    if not accepted:
-        return None
-    return {"apply_changes": True, "place_on_sheet": False}
+    return dialogs.pick_file("Select the legend settings file")

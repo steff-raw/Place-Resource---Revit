@@ -135,12 +135,12 @@ def print_audit(audit):
 
 
 def alert_error(title, message):
-    """Show a short dialog in Revit and stay quiet outside it."""
+    """Show a short dialog in Revit. Fall back to the output window if no dialog can open."""
     try:
-        from pyrevit import forms
-        forms.alert(message, title=title)
+        from dialogs import alert
+        alert(message, title=title)
     except Exception:
-        pass
+        _print_md("## {0}\n\n{1}".format(title, message))
 
 
 def _print_md(markdown):

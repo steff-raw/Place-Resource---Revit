@@ -121,18 +121,17 @@ def _place_from_sheet(doc, uidoc, sheet, settings):
 
 
 def _ensure_legend(doc, source_view, definition, settings):
-    from pyrevit import forms
+    from dialogs import ask_yes_no
     legend_view = find_legend(doc, source_view, definition["id"])
     if legend_view is not None:
         return legend_view
-    create = forms.alert(
+    create = ask_yes_no(
+        "Place Legend on Sheet",
         "There is no generated legend for '{0}' using '{1}'. Create it now?".format(
             source_view.Name, definition["display_name"]
         ),
-        title="Place Legend on Sheet",
-        ok=False,
-        yes=True,
-        no=True,
+        yes_label="Create the legend",
+        no_label="Cancel",
     )
     if not create:
         return None

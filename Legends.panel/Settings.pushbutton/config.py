@@ -39,28 +39,23 @@ def _find_lib():
 
 _find_lib()
 
-from pyrevit import forms, script
-
 from configuration import load_settings, set_settings_override
+from dialogs import alert, pick_file
 from errors import LegendToolError
-
-config = script.get_config()
 
 
 def main():
-    """Store an optional settings path in the button config and the extension pointer."""
-    path = forms.pick_file(file_ext="json", title="Select the legend settings file")
+    """Pick a settings JSON file and store it in config/user_settings_path.txt."""
+    path = pick_file("Select the legend settings file")
     if not path:
         return
     try:
         load_settings(path)
     except LegendToolError as error:
-        forms.alert(str(error), title="Legend Settings")
+        alert(str(error), title="Legend Settings")
         return
     set_settings_override(path)
-    config.settings_path = path
-    script.save_config()
-    forms.alert("Saved legend settings path:\n{0}".format(path), title="Legend Settings")
+    alert("Saved legend settings path:\n{0}".format(path), title="Legend Settings")
 
 
 if __name__ == "__main__":
