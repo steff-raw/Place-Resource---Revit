@@ -25,6 +25,16 @@ The code targets the pyRevit CPython 3 engine and the public Revit API. Do not t
 
 Every button script starts with `#! python3`, so pyRevit runs it in CPython 3. IronPython is not supported.
 
+## Security
+
+The tool works fully offline. It opens no network connection, contains no URLs, starts no other program, and writes only to `PlaceResource/config` and to Extensible Storage in the model. Check this before each release:
+
+```bash
+python .claude/skills/offline-security/scripts/check_offline.py
+```
+
+The same check runs in the unit tests. Rules: `.claude/skills/offline-security/SKILL.md`.
+
 ## What it does
 
 The **Legends** panel (ribbon title **Place Resources**) works from a plan, section, or elevation. It collects the wall types that are actually visible, then creates or updates a legend that contains only those types.
@@ -110,7 +120,7 @@ Read-only. The output lists the source view, generated legend, definition, visib
 
 ### Settings
 
-Validates the JSON, chooses another settings file, returns to the built-in file, or opens the file. Invalid text styles are reported when a legend command runs, before any transaction starts, and the message lists text types that do exist.
+Validates the JSON, chooses another settings file, returns to the built-in file, or shows the file location so you can open it yourself. Invalid text styles are reported when a legend command runs, before any transaction starts, and the message lists text types that do exist.
 
 ## How a legend is matched to a view
 

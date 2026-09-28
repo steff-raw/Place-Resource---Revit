@@ -131,7 +131,7 @@ SETTINGS_ACTIONS = (
     "Validate configuration",
     "Choose configuration file",
     "Use the built-in configuration",
-    "Open configuration file",
+    "Show configuration file location",
 )
 
 
@@ -144,7 +144,7 @@ def choose_settings_action():
             (SETTINGS_ACTIONS[0], SETTINGS_ACTIONS[0], "Check the current JSON file and list its legends."),
             (SETTINGS_ACTIONS[1], SETTINGS_ACTIONS[1], "Use a project-specific JSON file from now on."),
             (SETTINGS_ACTIONS[2], SETTINGS_ACTIONS[2], "Go back to config/legends.json."),
-            (SETTINGS_ACTIONS[3], SETTINGS_ACTIONS[3], "Open the current JSON file in the default editor."),
+            (SETTINGS_ACTIONS[3], SETTINGS_ACTIONS[3], "Show the path of the current JSON file to open in your editor."),
         ],
         footer="Office styles and spacing are stored in JSON, not in the Python code.",
     )

@@ -99,6 +99,7 @@ python -m unittest discover -s tests -v
 
 ## Review checklist
 
+- [ ] `python .claude/skills/offline-security/scripts/check_offline.py` passes (see the `offline-security` skill)
 - [ ] `#! python3` is the first line of every changed `script.py`
 - [ ] No `DB` import at module top level in `lib/`
 - [ ] No `pyrevit.forms` import; dialogs go through `lib/dialogs.py`

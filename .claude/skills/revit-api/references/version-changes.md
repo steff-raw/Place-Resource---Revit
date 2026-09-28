@@ -1,6 +1,6 @@
 # Revit API changes by version
 
-Written from knowledge. Items marked **(verify)** must be checked in the "What's New" page of the Revit SDK or on revitapidocs.com for that year.
+Written from knowledge. Items marked **(verify)** must be checked in the "What's New" section of the local Revit SDK help for that year.
 
 | Version | Change | What to do |
 | --- | --- | --- |

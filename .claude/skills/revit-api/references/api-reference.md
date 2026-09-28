@@ -1,6 +1,6 @@
 # Revit API reference (2025 baseline)
 
-Written from knowledge. Anything marked **(verify)** must be checked on revitapidocs.com. Namespace is `Autodesk.Revit.DB` unless stated otherwise.
+Written from knowledge. Anything marked **(verify)** must be checked in the local Revit SDK help (`RevitAPI.chm`). Namespace is `Autodesk.Revit.DB` unless stated otherwise.
 
 ## Contents
 1. Application and document

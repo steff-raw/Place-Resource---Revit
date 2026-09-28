@@ -73,7 +73,7 @@ def main():
     elif action == "Use the built-in configuration":
         set_settings_override(None)
         _validate(default_settings_path())
-    elif action == "Open configuration file":
+    elif action == "Show configuration file location":
         _open(resolve_settings_path())
     elif action:
         raise LegendToolError("Unknown settings action '{0}'.".format(action))
@@ -95,10 +95,8 @@ def _validate(path):
 
 
 def _open(path):
-    if os.name == "nt":
-        os.startfile(path)  # pylint: disable=no-member
-        return
-    alert("Open this file in an editor:\n{0}".format(path), title="Legend Settings")
+    # The tool never starts another program. Show the path so the user opens it themselves.
+    alert("Open this file in your editor:\n{0}".format(path), title="Legend Settings")
 
 
 if __name__ == "__main__":

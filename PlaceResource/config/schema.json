@@ -1,6 +1,5 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://place-resource.local/schemas/view-legend-creator/legends-1.0.json",
+  "$comment": "JSON Schema draft-07. No $schema or $id URL on purpose: editors must not fetch anything from the internet.",
   "title": "View-Based Legend Creator settings",
   "type": "object",
   "required": ["schema_version", "parameter_alias_file", "legend_definitions"],

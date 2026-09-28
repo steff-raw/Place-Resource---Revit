@@ -7,7 +7,9 @@ description: Revit API reference (2025 baseline) for writing and checking Revit 
 
 Baseline: **Revit 2025 API** (.NET 8, 64-bit `ElementId`).
 
-This reference was written from knowledge, not copied from the docs site. Items marked **(verify)** must be checked on revitapidocs.com before relying on them. If a call is not in the reference files, look it up. Don't guess a signature.
+This reference was written from knowledge, not copied from the docs. Items marked **(verify)** must be checked in the local Revit SDK help before relying on them. If a call is not in the reference files, don't guess a signature.
+
+The `offline-security` skill applies: no web lookups for this project.
 
 ## Files
 
@@ -18,18 +20,20 @@ This reference was written from knowledge, not copied from the docs site. Items 
 
 Read only the section you need.
 
-## Looking up a member that isn't listed
+## Looking up a member that isn't listed (offline only)
 
-1. The site is `https://www.revitapidocs.com/<year>/`, where `<year>` is 2015–2026. Pages are `<guid>.htm` and the GUIDs are not guessable, so use the site search or a web search: `site:revitapidocs.com 2025 <Class> <Member>`.
-2. Confirm on the page:
+1. Don't search the web or fetch documentation sites. The `offline-security` skill forbids it.
+2. Ask the user to check the **local Revit SDK help**, `RevitAPI.chm`. It installs with the Revit SDK for their Revit year and opens offline.
+3. What to confirm there:
    - namespace
    - static or instance
    - every overload
    - **return type** (for example, a collection vs. a single `ElementId`)
    - exceptions thrown
    - "Remarks" limits (view type, transaction required)
-3. Check the same page for the **oldest supported year** too. A member can be missing in older versions.
-4. If the host blocks the site, say so and mark the call **(verify)** in the code comment or review. Don't present it as confirmed.
+4. Check the **oldest supported Revit year** too. A member can be missing in older versions.
+5. Until it is confirmed, mark the call **(verify)** in the code comment or review, and write it so a missing member fails with a clear message.
+6. Once the user confirms a member, add it to `references/api-reference.md` so the next lookup stays local.
 
 ## Rules for using the API from pyRevit
 
