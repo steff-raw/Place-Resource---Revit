@@ -270,7 +270,7 @@ def _run_changes(doc, source_view, definition, settings, plan, report, proposed_
             )
             if parameter_notice:
                 report["notices"].append(parameter_notice)
-            report["warnings"].extend(transaction.warnings)
+        report["warnings"].extend(transaction.warnings)
 
         with TransactionContext(doc, "Update legend entries") as transaction:
             _populate(
@@ -278,13 +278,13 @@ def _run_changes(doc, source_view, definition, settings, plan, report, proposed_
                 body_type, header_type, template, allow_delete,
             )
             doc.Regenerate()
-            report["warnings"].extend(transaction.warnings)
+        report["warnings"].extend(transaction.warnings)
 
         with TransactionContext(doc, "Align legend entries") as transaction:
             _align(doc, legend_view, source_view, definition, plan, report, viewports, proposed_hash, settings)
             doc.Regenerate()
             _record_measured_overlaps(doc, legend_view, report)
-            report["warnings"].extend(transaction.warnings)
+        report["warnings"].extend(transaction.warnings)
 
     report["status"] = "created" if created_new else "updated"
     report["legend_view_id"] = element_id_value(legend_view.Id)

@@ -195,5 +195,4 @@ def place_on_sheet(doc, sheet, legend_view, point, prevent_duplicate=True):
                     legend_view.Name, sheet_label(sheet), ex
                 )
             )
-        warnings = list(transaction.warnings)
-    return viewport, warnings
+    return viewport, list(transaction.warnings)

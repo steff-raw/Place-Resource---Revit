@@ -46,10 +46,10 @@ Rules:
 
 ## CPython / pythonnet pitfalls
 
-- **.NET interfaces** (`IFailuresPreprocessor`, `ISelectionFilter`, `IExternalEventHandler`): the class needs `__namespace__` and must be defined **once per Revit session**. The CPython engine is shared, so a second definition throws "duplicate type name". Cache the class on a module-level global or on `sys`.
+- **No Python callbacks into Revit.** Don't hand Revit a Python class that implements a .NET interface (`IFailuresPreprocessor`, `IUpdater`, `ISelectionFilter`, `IExternalEventHandler`) and don't attach Python event handlers. Under the pyRevit CPython engine these callbacks can abort the command with "PythonEngine is not initialized". Read warnings with `doc.GetWarnings()` before/after the transaction (`lib/transactions.py`) instead.
 - **Generics**: `List[DB.ElementId]()`, `entity.Get[String](field)`, `entity.Set[String](field, value)`.
 - **out/ref parameters** come back as a tuple: `ok, value = obj.TryGet(...)`.
-- **`pyrevit.forms` does not work under CPython.** pyRevit replaces the whole module with stubs that raise `PyRevitCPythonNotSupported` (`alert`, `SelectFromList`, `CommandSwitchWindow`, `FlexForm`, `pick_file`, `ask_for_*`, `ProgressBar`, WPF windows). Use `lib/dialogs.py`: `alert`, `ask_yes_no`, `choose_command` (TaskDialog, max 4 options), `choose_from_list` (WinForms, filterable), `pick_file`. `pyrevit.script` (output window, logger, `linkify`) still works.
+- **`pyrevit.forms` does not work under CPython.** pyRevit replaces the whole module with stubs that raise `PyRevitCPythonNotSupported` (`alert`, `SelectFromList`, `CommandSwitchWindow`, `FlexForm`, `pick_file`, `ask_for_*`, `ProgressBar`, WPF windows). Use `lib/dialogs.py`: `alert`, `ask_yes_no`, `choose_command` (TaskDialog, max 4 options), `choose_from_list` (WinForms, no event handlers), `pick_file`. `pyrevit.script` (output window, logger, `linkify`) still works.
 - Enum to text: `value.ToString()`, not `str(value)`.
 
 ## Revit API pitfalls

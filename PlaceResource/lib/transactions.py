@@ -3,6 +3,12 @@
 
 Transactions are not left open after an exception. Warning messages are
 recorded and returned to the report. They are not suppressed.
+
+No Python class is handed to Revit as a callback (for example an
+IFailuresPreprocessor). Under the pyRevit CPython engine, Revit calling back
+into Python can fail with "PythonEngine is not initialized" and abort the
+command. New warnings are read with Document.GetWarnings() instead: the
+warnings present before the transaction are compared with those after commit.
 """
 
 from logging_service import get_logger
@@ -10,51 +16,45 @@ from logging_service import get_logger
 LOGGER = get_logger("transactions")
 
 
-class _WarningCollector(object):
-    """Failures preprocessor that records Revit warnings and lets them through."""
-
-    def __init__(self, db_module):
-        self._db = db_module
-        self.messages = []
-
-    def PreprocessFailures(self, failures_accessor):
-        try:
-            for message in failures_accessor.GetFailureMessages():
-                description = message.GetDescriptionText()
-                severity = message.GetSeverity()
-                self.messages.append("{0}: {1}".format(severity, description))
-        except Exception as ex:
-            self.messages.append("Could not read a Revit failure message: {0}".format(ex))
-        return self._db.FailureProcessingResult.Continue
-
-
-# pythonnet registers a .NET type per class. The CPython engine is shared for
-# the whole Revit session, so a second definition with the same name fails.
-# The class is kept on ``sys`` because pyRevit may re-import this module.
-_COLLECTOR_TYPE_ATTR = "_place_resource_warning_collector_type"
-
-
-def _warning_collector_type(db_module):
-    import sys
-    cached = getattr(sys, _COLLECTOR_TYPE_ATTR, None)
-    if cached is not None:
-        return cached
-    collector_type = type(
-        "PlaceResourceWarningCollector",
-        (_WarningCollector, db_module.IFailuresPreprocessor),
-        {"__namespace__": "PlaceResourceLegendCreator"},
-    )
-    setattr(sys, _COLLECTOR_TYPE_ATTR, collector_type)
-    return collector_type
-
-
-def _bind_warning_collector(db_module):
-    """Create a preprocessor instance, or None if this host cannot bind one."""
+def warning_keys(doc):
+    """Return (description, failing element ids) for each warning in the model, or None."""
+    from version_adapter import element_id_value
     try:
-        return _warning_collector_type(db_module)(db_module)
-    except Exception as ex:
-        LOGGER.warning("Revit warning capture was not attached: %s", ex)
+        warnings = list(doc.GetWarnings())
+    except Exception:
         return None
+    keys = []
+    for warning in warnings:
+        try:
+            description = warning.GetDescriptionText()
+        except Exception:
+            continue
+        try:
+            ids = tuple(sorted(element_id_value(item) for item in warning.GetFailingElements()))
+        except Exception:
+            ids = ()
+        keys.append((description, ids))
+    return keys
+
+
+def new_warning_messages(before, after):
+    """Return readable messages for warnings present after but not before."""
+    if before is None or after is None:
+        return []
+    remaining = list(before)
+    messages = []
+    for key in after:
+        if key in remaining:
+            remaining.remove(key)
+            continue
+        description, ids = key
+        if ids:
+            messages.append("Revit warning: {0} (elements {1})".format(
+                description, ", ".join(str(value) for value in ids)
+            ))
+        else:
+            messages.append("Revit warning: {0}".format(description))
+    return messages
 
 
 class TransactionContext(object):
@@ -65,23 +65,17 @@ class TransactionContext(object):
         self.name = name
         self.warnings = []
         self._transaction = None
-        self._collector = None
+        self._before = None
 
     def __enter__(self):
         from version_adapter import get_db
         db_module = get_db()
+        self._before = warning_keys(self.doc)
         self._transaction = db_module.Transaction(self.doc, self.name)
         self._transaction.Start()
-        self._collector = _bind_warning_collector(db_module)
-        if self._collector is not None:
-            options = self._transaction.GetFailureHandlingOptions()
-            options.SetFailuresPreprocessor(self._collector)
-            options.SetClearAfterRollback(True)
-            self._transaction.SetFailureHandlingOptions(options)
         return self
 
     def __exit__(self, exc_type, exc, traceback):
-        self._collect_warnings()
         if exc_type:
             self._rollback()
             return False
@@ -90,11 +84,8 @@ class TransactionContext(object):
         except Exception:
             self._rollback()
             raise
+        self.warnings.extend(new_warning_messages(self._before, warning_keys(self.doc)))
         return False
-
-    def _collect_warnings(self):
-        if self._collector is not None:
-            self.warnings.extend(self._collector.messages)
 
     def _rollback(self):
         transaction = self._transaction

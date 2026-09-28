@@ -65,7 +65,11 @@ def ask_yes_no(title, instruction, content=None, yes_label="Yes", no_label="No")
 
 
 def choose_from_list(title, labels, prompt=None, button_text="Select"):
-    """Pick one entry from a filterable list. Returns its index, or None when cancelled."""
+    """Pick one entry from a list. Returns its index, or None when cancelled.
+
+    No Python event handlers are attached to the form, so .NET never calls back
+    into Python while the dialog is open. Select an item and press the button.
+    """
     labels = [str(label) for label in labels]
     if not labels:
         return None
@@ -83,7 +87,6 @@ def choose_from_list(title, labels, prompt=None, button_text="Select"):
         FormStartPosition,
         Label,
         ListBox,
-        TextBox,
     )
 
     form = Form()
@@ -95,16 +98,16 @@ def choose_from_list(title, labels, prompt=None, button_text="Select"):
     form.ShowInTaskbar = False
 
     header = Label()
-    header.Text = prompt or "Type to filter, then select one item."
+    header.Text = prompt or "Select one item, then press {0}.".format(button_text)
     header.Dock = DockStyle.Top
     header.Height = 24
-
-    search = TextBox()
-    search.Dock = DockStyle.Top
 
     box = ListBox()
     box.Dock = DockStyle.Fill
     box.IntegralHeight = False
+    for label in labels:
+        box.Items.Add(label)
+    box.SelectedIndex = 0
 
     buttons = FlowLayoutPanel()
     buttons.Dock = DockStyle.Bottom
@@ -122,47 +125,18 @@ def choose_from_list(title, labels, prompt=None, button_text="Select"):
     form.AcceptButton = accept
     form.CancelButton = cancel
 
-    visible = []
-
-    def _refill(text):
-        needle = (text or "").strip().lower()
-        box.BeginUpdate()
-        box.Items.Clear()
-        del visible[:]
-        for index, label in enumerate(labels):
-            if needle and needle not in label.lower():
-                continue
-            visible.append(index)
-            box.Items.Add(label)
-        box.EndUpdate()
-        if box.Items.Count:
-            box.SelectedIndex = 0
-
-    def _on_search(sender, args):
-        _refill(search.Text)
-
-    def _on_double_click(sender, args):
-        if box.SelectedIndex >= 0:
-            form.DialogResult = DialogResult.OK
-            form.Close()
-
-    search.TextChanged += _on_search
-    box.DoubleClick += _on_double_click
-
     # WinForms docks the last-added control first, so the fill control goes in last.
     form.Controls.Add(buttons)
-    form.Controls.Add(search)
     form.Controls.Add(header)
     form.Controls.Add(box)
     box.BringToFront()
-    _refill("")
-    form.ActiveControl = search
+    form.ActiveControl = box
 
     try:
         result = form.ShowDialog()
         if result != DialogResult.OK or box.SelectedIndex < 0:
             return None
-        return visible[box.SelectedIndex]
+        return int(box.SelectedIndex)
     finally:
         form.Dispose()
 
