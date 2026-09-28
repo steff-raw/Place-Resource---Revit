@@ -84,7 +84,7 @@ Place Resource.extension/
 
 1. Reject a read-only document, a family document, a sheet, a legend, a view template, and a view type outside `source_view_types`.
 2. Collect `OST_Walls` with `WhereElementIsNotElementType()` in the source view.
-3. Drop invalid type ids and elements `View.IsHidden` still returns.
+3. Drop invalid type ids and elements for which `Element.IsHidden(view)` is still true.
 4. Classify each wall: basic, curtain, stacked, in-place, stacked member, demolished, parts-only, linked.
 5. Apply the JSON include flags. Defaults exclude curtain, stacked, members, in-place, demolished, parts-only, and links.
 6. Unique the remaining instances by host `WallType` id.

@@ -135,7 +135,7 @@ def _collect_links(doc, view, adapter, include, definition, grouped, result):
         return
     for link in links:
         try:
-            if view.IsHidden(link):
+            if link.IsHidden(view):
                 continue
         except Exception:
             pass
@@ -372,7 +372,7 @@ def _duplicate_mark_warning(result, definition):
 
 def _hidden_in_view(view, element):
     try:
-        if view.IsHidden(element):
+        if element.IsHidden(view):
             return True, "element_hidden"
     except Exception:
         pass

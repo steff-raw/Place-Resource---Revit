@@ -1,3 +1,4 @@
+#! python3
 # -*- coding: utf-8 -*-
 """Place the generated legend for a model view onto a sheet.
 

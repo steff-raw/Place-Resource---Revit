@@ -1,3 +1,4 @@
+#! python3
 # -*- coding: utf-8 -*-
 """Update every tool-managed legend whose visible types have changed.
 

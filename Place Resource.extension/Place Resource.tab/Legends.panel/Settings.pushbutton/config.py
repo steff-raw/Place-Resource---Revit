@@ -1,3 +1,4 @@
+#! python3
 # -*- coding: utf-8 -*-
 """Shift-click configuration for the Settings button.
 

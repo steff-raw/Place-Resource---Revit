@@ -1,3 +1,4 @@
+#! python3
 # -*- coding: utf-8 -*-
 """Create or update the legend for the active model view.
 

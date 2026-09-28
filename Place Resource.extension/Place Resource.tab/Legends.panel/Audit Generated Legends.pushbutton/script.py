@@ -1,3 +1,4 @@
+#! python3
 # -*- coding: utf-8 -*-
 """Report differences between generated legends and their source views.
 

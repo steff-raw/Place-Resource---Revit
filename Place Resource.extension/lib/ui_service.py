@@ -101,10 +101,10 @@ def choose_named_item(title, items, label_for):
 
 def pick_sheet_point(uidoc):
     """Let the user pick a sheet point. Returns None if the pick is cancelled."""
-    from pyrevit import DB
+    from Autodesk.Revit.Exceptions import OperationCanceledException
     try:
         return uidoc.Selection.PickPoint("Pick the legend anchor on the sheet")
-    except DB.OperationCanceledException:
+    except OperationCanceledException:
         # pythonnet may wrap the Revit exception differently.
         return None
     except Exception as ex:
