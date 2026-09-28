@@ -10,6 +10,9 @@
 - Always rebuild managed borders and layer graphics. They no longer stack up when entry removal is off or `layer_reference_planes` is on.
 - Remove the duplicated seed from a new legend when the view has no visible types, instead of leaving an orphan component.
 - Show type names instead of ids in the removal prompt of Place Legend on Sheet.
+- Read the first id from `ElementTransformUtils.CopyElement`, which returns a collection. Legends with more than one type failed on the second component.
+- Create border and layer lines with `doc.Create.NewDetailCurve`. `DetailCurve.Create` does not exist, so `show_border` and `fallback_detail_lines` failed.
+- Create layer reference planes with `doc.Create.NewReferencePlane`.
 - Wall-only include flags are required only for `OST_Walls`. Other categories use `in_place`, `linked_models`, and `demolished`, and a wall-only flag on them is rejected. The door definition was updated to match.
 
 ## 1.0.0

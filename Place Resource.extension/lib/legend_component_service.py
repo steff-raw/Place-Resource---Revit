@@ -76,14 +76,16 @@ class LegendComponentService(object):
         DB = get_db()
         offset = DB.XYZ(float(offset_index + 1) * 10.0, 0, 0)
         try:
-            new_id = DB.ElementTransformUtils.CopyElement(self.doc, seed.Id, offset)
+            # CopyElement returns ICollection<ElementId>, not a single id.
+            copied = DB.ElementTransformUtils.CopyElement(self.doc, seed.Id, offset)
         except Exception as ex:
             raise UnsupportedRevitOperationError(
                 "Revit could not copy the seed legend component. "
                 "Confirm the template legend contains one legend component and that this Revit "
                 "version allows ElementTransformUtils.CopyElement for legend components. {0}".format(ex)
             )
-        element = self.doc.GetElement(new_id)
+        new_ids = list(copied) if copied is not None else []
+        element = self.doc.GetElement(new_ids[0]) if new_ids else None
         if element is None:
             raise UnsupportedRevitOperationError(
                 "Revit copied a legend component but did not return the new element."
@@ -281,7 +283,7 @@ class LegendComponentService(object):
         for layer in structure.GetLayers():
             cursor += float(layer.Width)
             line = DB.Line.CreateBound(DB.XYZ(cursor, y0, 0), DB.XYZ(cursor, y1, 0))
-            curve = DB.DetailCurve.Create(self.doc, self.legend_view, line)
+            curve = self.doc.Create.NewDetailCurve(self.legend_view, line)
             if graphics is not None:
                 curve.LineStyle = graphics
             created.append(curve)
@@ -310,7 +312,7 @@ class LegendComponentService(object):
         ]
         created = []
         for start, end in corners:
-            curve = DB.DetailCurve.Create(self.doc, self.legend_view, DB.Line.CreateBound(start, end))
+            curve = self.doc.Create.NewDetailCurve(self.legend_view, DB.Line.CreateBound(start, end))
             curve.LineStyle = graphics
             created.append(curve)
             managed_writer(curve, "border")
@@ -471,7 +473,7 @@ class LegendComponentService(object):
             free = db_module.XYZ(bbox.Max.X, y_pos, 0)
             cut = db_module.XYZ.BasisZ
         try:
-            return db_module.ReferencePlane.Create(self.doc, bubble, free, cut, self.legend_view)
+            return self.doc.Create.NewReferencePlane(bubble, free, cut, self.legend_view)
         except Exception as ex:
             raise UnsupportedRevitOperationError(
                 "Revit could not create a layer reference plane in the legend. "

@@ -222,7 +222,7 @@ Creation: `ViewPlan.Create(doc, viewFamilyTypeId, levelId)`, `ViewSection.Create
 | `CurveElement.LineStyle` | Get/set with a `GraphicsStyle` element |
 | `CurveElement.GetLineStyleIds()` | Valid styles |
 | `doc.Create.NewDimension(View, Line, ReferenceArray [, DimensionType])` | Returns `Dimension` |
-| `doc.Create.NewReferencePlane(XYZ bubbleEnd, XYZ freeEnd, XYZ cutVec, View)` | Returns `ReferencePlane` **(verify whether a static `ReferencePlane.Create` exists)** |
+| `doc.Create.NewReferencePlane(XYZ bubbleEnd, XYZ freeEnd, XYZ cutVec, View)` | Returns `ReferencePlane`. Use this factory method (the repo does); don't assume a static `ReferencePlane.Create` **(verify)** |
 | `ReferencePlane.GetReference()` | `Reference` for dimensions |
 | `FilledRegion.Create(doc, typeId, viewId, IList<CurveLoop>)` | Filled region |
 | `IndependentTag.Create(doc, typeId, viewId, Reference, addLeader, TagOrientation, XYZ)` | 2019+ overload |
