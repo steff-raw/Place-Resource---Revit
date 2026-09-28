@@ -114,7 +114,11 @@ def _ensure_legend(doc, source_view, definition, settings):
     if plan["to_remove"] and definition["update"].get("remove_unused_entries"):
         allow_delete = True
         if definition["update"].get("confirm_before_deleting"):
-            allow_delete = bool(confirm_delete([str(type_id) for type_id in plan["to_remove"]]))
+            labels = []
+            for type_id in plan["to_remove"]:
+                element = doc.GetElement(make_element_id(type_id))
+                labels.append(element.Name if element is not None else str(type_id))
+            allow_delete = bool(confirm_delete(labels))
     report = create_or_update(doc, source_view, definition, settings, {"allow_delete": allow_delete})
     print_report(report)
     if report.get("status") == "failed" or report.get("legend_view_id") is None:

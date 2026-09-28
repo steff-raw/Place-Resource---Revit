@@ -20,6 +20,16 @@ REQUIRED_INCLUDE = (
     "in_place_walls",
     "linked_models",
 )
+REQUIRED_GENERIC_INCLUDE = ("linked_models",)
+WALL_ONLY_INCLUDE = (
+    "basic_walls",
+    "curtain_walls",
+    "stacked_walls",
+    "in_place_walls",
+    "stacked_wall_members",
+    "when_parts_replace_original",
+)
+OPTIONAL_INCLUDE = ("demolished", "in_place", "stacked_wall_members", "when_parts_replace_original")
 REQUIRED_LAYOUT = (
     "direction",
     "columns",
@@ -63,12 +73,17 @@ VIEW_DIRECTIONS = (
 DETAIL_LEVELS = ("Coarse", "Medium", "Fine")
 ALIGNMENTS = ("top_left", "top_right", "bottom_left", "bottom_right")
 
+WALL_INCLUDE_DEFAULTS = {
+    "demolished": False,
+    "stacked_wall_members": False,
+    "when_parts_replace_original": False,
+}
+GENERIC_INCLUDE_DEFAULTS = {
+    "demolished": False,
+    "in_place": False,
+}
+
 BEHAVIOUR_DEFAULTS = {
-    "include": {
-        "demolished": False,
-        "stacked_wall_members": False,
-        "when_parts_replace_original": False,
-    },
     "type_rules": {
         "missing_required_parameter": "warn",
         "unused_loaded_types": "exclude",
@@ -269,6 +284,10 @@ def _alias_path(settings_path, configured_name):
 
 def _apply_defaults(data):
     for definition in data["legend_definitions"]:
+        include_defaults = WALL_INCLUDE_DEFAULTS if _is_wall(definition) else GENERIC_INCLUDE_DEFAULTS
+        include = definition.setdefault("include", {})
+        for key, value in include_defaults.items():
+            include.setdefault(key, value)
         for section, defaults in BEHAVIOUR_DEFAULTS.items():
             block = definition.setdefault(section, {})
             for key, value in defaults.items():
@@ -299,7 +318,7 @@ def _validate_settings(data, path):
         view_types = definition.get("source_view_types")
         if not isinstance(view_types, list) or not view_types or any(not isinstance(item, str) for item in view_types):
             raise ConfigurationError("{0} source_view_types must be a non-empty list of view type names.".format(label))
-        _require_bool_map(definition.get("include"), REQUIRED_INCLUDE, label + ".include")
+        _validate_include(definition, label)
         _validate_sort(definition.get("sort"), label)
         _validate_representation(definition.get("representation"), label)
         _validate_layout(definition.get("layout"), label)
@@ -327,6 +346,30 @@ def _validate_optional_sections(definition, label):
         raise ConfigurationError(
             "{0}.sheet_placement.mode must be 'pick_point' or 'configured_point'.".format(label)
         )
+
+
+def _is_wall(definition):
+    return definition.get("category") == "OST_Walls"
+
+
+def _validate_include(definition, label):
+    include = definition.get("include")
+    prefix = label + ".include"
+    if _is_wall(definition):
+        _require_bool_map(include, REQUIRED_INCLUDE, prefix)
+    else:
+        _require_bool_map(include, REQUIRED_GENERIC_INCLUDE, prefix)
+        wall_keys = [key for key in WALL_ONLY_INCLUDE if key in include]
+        if wall_keys:
+            raise ConfigurationError(
+                "{0} has wall-only flags ({1}) but the category is {2}. Remove them. "
+                "Use in_place, linked_models, and demolished for this category.".format(
+                    prefix, ", ".join(wall_keys), definition.get("category")
+                )
+            )
+    for key in OPTIONAL_INCLUDE:
+        if key in include and not isinstance(include[key], bool):
+            raise ConfigurationError("{0}.{1} must be true or false.".format(prefix, key))
 
 
 def _validate_sort(rules, label):

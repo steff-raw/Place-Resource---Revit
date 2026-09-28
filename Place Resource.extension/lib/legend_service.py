@@ -366,17 +366,17 @@ def _populate(doc, legend_view, source_view, definition, plan, report,
                 delete_managed_elements(doc, doomed)
                 report["removed"].append(str(type_id))
 
-    if fresh_legend and source is not None and not plan["collection"].types:
+    if fresh_legend and source is not None and not plan["collection"].types and plan["existing"] is None:
+        # The seed came with the template duplicate made in this run, so it is ours to remove.
         _mark(source, definition, source_view, None, "component")
-        if allow_delete:
-            delete_managed_elements(doc, [source])
-            report["notices"].append("The duplicated seed component was removed because the view has no visible types.")
+        delete_managed_elements(doc, [source])
+        report["notices"].append("The duplicated seed component was removed because the view has no visible types.")
 
     _sync_labels(
         doc, service, legend_view, source_view, definition, plan, report,
         body_type, header_type, by_type,
     )
-    _sync_chrome(doc, legend_view, definition, allow_delete)
+    _sync_chrome(doc, legend_view)
 
 
 def _sync_labels(doc, service, legend_view, source_view, definition, plan, report,
@@ -446,14 +446,15 @@ def _sync_labels(doc, service, legend_view, source_view, definition, plan, repor
             delete_managed_elements(doc, stale)
 
 
-def _sync_chrome(doc, legend_view, definition, allow_delete):
-    """Remove managed borders and layer graphics so the align pass can rebuild them."""
-    if not allow_delete and not definition["update"].get("remove_unused_entries", True):
-        return
+def _sync_chrome(doc, legend_view):
+    """Remove managed borders and layer graphics.
+
+    The align pass rebuilds the ones the settings ask for, so they are removed on
+    every run. Declining entry removal does not apply here: these are generated
+    graphics, not legend entries, and keeping them would stack a copy per update.
+    """
     managed = collect_managed_elements(doc, legend_view)
-    roles = {"border"}
-    if not definition["representation"].get("layer_reference_planes"):
-        roles.update(("layer_reference", "layer_dimension", "layer_line"))
+    roles = {"border", "layer_reference", "layer_dimension", "layer_line"}
     doomed = [element for element, payload in managed if payload.get("role") in roles]
     if doomed:
         delete_managed_elements(doc, doomed)

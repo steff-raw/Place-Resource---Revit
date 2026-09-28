@@ -17,6 +17,30 @@
   "definitions": {
     "legendDefinition": {
       "type": "object",
+      "if": {"properties": {"category": {"const": "OST_Walls"}}},
+      "then": {
+        "properties": {
+          "include": {
+            "required": ["basic_walls", "curtain_walls", "stacked_walls", "in_place_walls", "linked_models"]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "include": {
+            "not": {
+              "anyOf": [
+                {"required": ["basic_walls"]},
+                {"required": ["curtain_walls"]},
+                {"required": ["stacked_walls"]},
+                {"required": ["in_place_walls"]},
+                {"required": ["stacked_wall_members"]},
+                {"required": ["when_parts_replace_original"]}
+              ]
+            }
+          }
+        }
+      },
       "required": [
         "id",
         "display_name",
@@ -47,18 +71,13 @@
         "output_identity_parameter": {"type": "string", "minLength": 1},
         "include": {
           "type": "object",
-          "required": [
-            "basic_walls",
-            "curtain_walls",
-            "stacked_walls",
-            "in_place_walls",
-            "linked_models"
-          ],
+          "required": ["linked_models"],
           "properties": {
             "basic_walls": {"type": "boolean"},
             "curtain_walls": {"type": "boolean"},
             "stacked_walls": {"type": "boolean"},
             "in_place_walls": {"type": "boolean"},
+            "in_place": {"type": "boolean"},
             "linked_models": {"type": "boolean"},
             "demolished": {"type": "boolean"},
             "stacked_wall_members": {"type": "boolean"},

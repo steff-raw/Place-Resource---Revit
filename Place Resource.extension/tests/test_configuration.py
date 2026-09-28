@@ -10,7 +10,7 @@ CONFIG = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "config",
 if LIB not in sys.path:
     sys.path.insert(0, LIB)
 
-from category_adapter import wall_is_included
+from category_adapter import generic_is_included, wall_is_included
 from configuration import (
     apply_name_pattern,
     load_settings,
@@ -56,6 +56,34 @@ class ConfigurationTests(unittest.TestCase):
         from configuration import _validate_settings
         with self.assertRaises(ConfigurationError):
             _validate_settings(broken, CONFIG)
+
+    def test_door_definition_has_no_wall_flags(self):
+        settings = load_settings(CONFIG)
+        door = settings["data"]["legend_definitions"][3]
+        self.assertEqual(door["category"], "OST_Doors")
+        self.assertNotIn("basic_walls", door["include"])
+        self.assertNotIn("stacked_wall_members", door["include"])
+        self.assertFalse(door["include"]["in_place"])
+
+    def test_wall_flag_on_generic_definition_is_rejected(self):
+        settings = load_settings(CONFIG)
+        broken = settings["data"]
+        broken["legend_definitions"][3]["include"]["curtain_walls"] = False
+        from configuration import _validate_settings
+        with self.assertRaises(ConfigurationError):
+            _validate_settings(broken, CONFIG)
+
+    def test_wall_definition_still_requires_wall_flags(self):
+        settings = load_settings(CONFIG)
+        broken = settings["data"]
+        del broken["legend_definitions"][0]["include"]["curtain_walls"]
+        from configuration import _validate_settings
+        with self.assertRaises(ConfigurationError):
+            _validate_settings(broken, CONFIG)
+
+    def test_generic_in_place_flag(self):
+        self.assertEqual(generic_is_included(True, False, False, {})[1], "in_place")
+        self.assertTrue(generic_is_included(True, False, False, {"in_place": True})[0])
 
     def test_name_pattern_and_sanitiser(self):
         name = apply_name_pattern(

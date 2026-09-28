@@ -33,8 +33,7 @@ def generic_is_included(is_in_place, is_linked, is_demolished, include):
     include = include or {}
     if is_demolished and not include.get("demolished", False):
         return False, "demolished"
-    in_place_allowed = include.get("in_place", include.get("in_place_walls", False))
-    if is_in_place and not in_place_allowed:
+    if is_in_place and not include.get("in_place", False):
         return False, "in_place"
     if is_linked and not include.get("linked_models", False):
         return False, "linked_model"

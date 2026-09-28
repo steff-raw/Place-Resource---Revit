@@ -206,20 +206,21 @@ def collect_managed_elements(doc, legend_view):
         seen.add(identity)
         found.append((element, payload))
 
+    # Everything the tool creates in a legend (components, text, detail lines,
+    # view-specific reference planes, dimensions) is owned by that view. The
+    # owner filter is a quick filter and also returns elements hidden in the view.
+    # The view-scoped collector is kept as a second pass. Neither scans the model.
+    try:
+        owned = DB.FilteredElementCollector(doc).WherePasses(DB.ElementOwnerViewFilter(legend_view.Id))
+        for element in owned.WhereElementIsNotElementType():
+            _consider(element)
+    except Exception:
+        pass
     try:
         for element in DB.FilteredElementCollector(doc, legend_view.Id).WhereElementIsNotElementType():
             _consider(element)
     except Exception:
         pass
-    for class_name in ("ReferencePlane", "Dimension", "TextNote", "DetailCurve"):
-        class_type = getattr(DB, class_name, None)
-        if class_type is None:
-            continue
-        try:
-            for element in DB.FilteredElementCollector(doc).OfClass(class_type).WhereElementIsNotElementType():
-                _consider(element)
-        except Exception:
-            continue
     return found
 
 

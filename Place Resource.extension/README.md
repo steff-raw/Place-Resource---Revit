@@ -108,6 +108,7 @@ These are not a second filter:
 - Parts are not wall types. When the view shows parts only, the original wall is excluded unless `when_parts_replace_original` is true.
 - Linked walls are off by default. When enabled, they are read from the link document and kept only when the host model has a type with the same family name and type name. Host view filters are not fully applied to link elements, and the report says so.
 - Curtain walls, stacked walls, stacked-wall members, in-place walls, demolished walls, and links are excluded unless the JSON include flags say otherwise.
+- Other categories take only `in_place`, `linked_models` (required), and `demolished`. Wall-only flags on a non-wall definition fail validation.
 
 A type that is loaded but unused in the view is not listed. `unused_loaded_types` is `exclude`.
 

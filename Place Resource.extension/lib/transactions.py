@@ -28,15 +28,30 @@ class _WarningCollector(object):
         return self._db.FailureProcessingResult.Continue
 
 
+# pythonnet registers a .NET type per class. The CPython engine is shared for
+# the whole Revit session, so a second definition with the same name fails.
+# The class is kept on ``sys`` because pyRevit may re-import this module.
+_COLLECTOR_TYPE_ATTR = "_place_resource_warning_collector_type"
+
+
+def _warning_collector_type(db_module):
+    import sys
+    cached = getattr(sys, _COLLECTOR_TYPE_ATTR, None)
+    if cached is not None:
+        return cached
+    collector_type = type(
+        "PlaceResourceWarningCollector",
+        (_WarningCollector, db_module.IFailuresPreprocessor),
+        {"__namespace__": "PlaceResourceLegendCreator"},
+    )
+    setattr(sys, _COLLECTOR_TYPE_ATTR, collector_type)
+    return collector_type
+
+
 def _bind_warning_collector(db_module):
     """Create a preprocessor instance, or None if this host cannot bind one."""
     try:
-        collector_type = type(
-            "PlaceResourceWarningCollector",
-            (_WarningCollector, db_module.IFailuresPreprocessor),
-            {"__namespace__": "PlaceResourceLegendCreator"},
-        )
-        return collector_type(db_module)
+        return _warning_collector_type(db_module)(db_module)
     except Exception as ex:
         LOGGER.warning("Revit warning capture was not attached: %s", ex)
         return None

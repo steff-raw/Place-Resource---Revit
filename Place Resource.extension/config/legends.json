@@ -257,14 +257,9 @@
       "output_name_pattern": "DOOR LEGEND - {source_view_name}",
       "output_identity_parameter": "GeneratedLegendSourceViewId",
       "include": {
-        "basic_walls": true,
-        "curtain_walls": false,
-        "stacked_walls": false,
-        "in_place_walls": false,
+        "in_place": false,
         "linked_models": false,
-        "demolished": false,
-        "stacked_wall_members": false,
-        "when_parts_replace_original": false
+        "demolished": false
       },
       "sort": [
         {"parameter": "Type Mark", "direction": "ascending", "natural_sort": true},
