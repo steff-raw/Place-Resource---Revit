@@ -255,7 +255,7 @@ Creation: `ViewPlan.Create(doc, viewFamilyTypeId, levelId)`, `ViewSection.Create
 | `Entity(Schema)`, `Entity.IsValid()`, `Entity.Schema` | Entity |
 | `Entity.Set<T>(string or Field, T [, ForgeTypeId unit])`, `Entity.Get<T>(string or Field [, ForgeTypeId])` | pythonnet: `entity.Set[String](field, value)` |
 | `Element.SetEntity(Entity)`, `GetEntity(Schema)`, `DeleteEntity(Schema)` | Needs a transaction to write |
-| `DataStorage.Create(Document)` | Invisible element for document-level data |
+| `ExtensibleStorage.DataStorage.Create(Document)` | Invisible element for document-level data. **Namespace `Autodesk.Revit.DB.ExtensibleStorage`**: from pyRevit use `DB.ExtensibleStorage.DataStorage`, not `DB.DataStorage` (AttributeError) |
 
 Schema GUIDs are permanent. Changing fields needs a new GUID.
 

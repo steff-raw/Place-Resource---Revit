@@ -53,4 +53,5 @@ Read only the section you need.
 - There is no `DetailCurve.Create`. Use `doc.Create.NewDetailCurve(view, curve)`.
 - `Element.IsHidden(view)`, not `view.IsHidden(element)`.
 - There is no public API to create a legend view or a legend component. Duplicate a legend and copy a component.
+- `DataStorage`, `Schema`, `SchemaBuilder`, `Entity` are in `DB.ExtensibleStorage`, not `DB`.
 - Temporary hide/isolate: `View.IsElementVisibleInTemporaryViewMode(TemporaryViewMode, ElementId)`.

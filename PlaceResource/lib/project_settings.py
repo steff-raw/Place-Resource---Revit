@@ -85,12 +85,12 @@ def _storage(doc, create):
     from identity import _read_entity
     from version_adapter import get_db
     DB = get_db()
-    for storage in DB.FilteredElementCollector(doc).OfClass(DB.DataStorage):
+    for storage in DB.FilteredElementCollector(doc).OfClass(DB.ExtensibleStorage.DataStorage):
         if _read_entity(storage, SETTINGS_SCHEMA_GUID) is not None:
             return storage
     if not create:
         return None
-    return DB.DataStorage.Create(doc)
+    return DB.ExtensibleStorage.DataStorage.Create(doc)
 
 
 def dumps(data):

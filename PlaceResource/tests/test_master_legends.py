@@ -98,6 +98,52 @@ class ProjectSettingsTests(unittest.TestCase):
         self.assertIn("not set", project_settings.describe({}))
 
 
+class StorageNamespaceTests(unittest.TestCase):
+    """DataStorage lives in DB.ExtensibleStorage, as in the Revit API. There is no DB.DataStorage."""
+
+    def _fake_db(self, stored):
+        created = []
+
+        class _DataStorage(object):
+            @staticmethod
+            def Create(doc):
+                element = object()
+                created.append(element)
+                return element
+
+        class _Collector(object):
+            def __init__(self, doc):
+                pass
+
+            def OfClass(self, cls):
+                assert cls is _DataStorage
+                return iter(stored)
+
+        extensible = type("ExtensibleStorage", (), {"DataStorage": _DataStorage})
+        return type("DB", (), {"FilteredElementCollector": _Collector, "ExtensibleStorage": extensible}), created
+
+    def test_read_and_create_use_extensible_storage_namespace(self):
+        import identity
+        import version_adapter
+        db, created = self._fake_db(stored=[])
+        with mock.patch.object(version_adapter, "get_db", return_value=db), \
+                mock.patch.object(identity, "_read_entity", return_value=None):
+            self.assertEqual(project_settings.read(None), {"text_type": None, "masters": {}})
+            project_settings._storage(None, create=True)
+        self.assertEqual(len(created), 1)
+
+    def test_existing_storage_is_found(self):
+        import identity
+        import version_adapter
+        storage = object()
+        db, created = self._fake_db(stored=[storage])
+        with mock.patch.object(version_adapter, "get_db", return_value=db), \
+                mock.patch.object(identity, "_read_entity", return_value={"text_type": "Office"}):
+            self.assertEqual(project_settings.read(None)["text_type"], "Office")
+            self.assertIs(project_settings._storage(None, create=True), storage)
+        self.assertEqual(created, [])
+
+
 class TextStyleTests(unittest.TestCase):
     def test_saved_style_wins_then_settings_file(self):
         calls = []

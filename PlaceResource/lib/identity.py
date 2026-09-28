@@ -384,10 +384,10 @@ def _read_entity(element, guid_text):
 def _registry_storage(doc):
     from version_adapter import get_db
     DB = get_db()
-    for storage in DB.FilteredElementCollector(doc).OfClass(DB.DataStorage):
+    for storage in DB.FilteredElementCollector(doc).OfClass(DB.ExtensibleStorage.DataStorage):
         if _read_entity(storage, REGISTRY_SCHEMA_GUID):
             return storage
-    created = DB.DataStorage.Create(doc)
+    created = DB.ExtensibleStorage.DataStorage.Create(doc)
     return created
 
 
