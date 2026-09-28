@@ -29,6 +29,22 @@ Office names, text styles, spacing, and parameters live in `config/legends.json`
 5. Open **Legend Settings** and confirm the JSON file validates. If the project uses different text styles, edit `styles` in the JSON file. Do not edit the Python to change them.
 6. Paste shared-parameter GUIDs for Acoustic Rating into `parameter_aliases.json` when the office uses a shared parameter.
 
+### Install the panel into an existing tab
+
+The buttons do not need `lib` and `config` inside the extension. Each script looks for a folder that contains `lib/legend_service.py`, in this order:
+
+1. The folder named by the `PLACE_RESOURCE_HOME` environment variable.
+2. The extension root, three levels above the script (this repository's layout).
+3. `Documents\Gensler\Python\PlaceResource` under OneDrive (`%OneDriveCommercial%`, then `%OneDrive%`), then under the user profile.
+
+To add only the panel to another tab:
+
+1. Copy `Legends.panel` into the existing `.tab` folder.
+2. Copy `lib` and `config` into `Documents\Gensler\Python\PlaceResource`, side by side. `config` must sit next to `lib`.
+3. Reload pyRevit.
+
+User settings, the settings pointer file, and any JSON registry fallback are written under that folder's `config`.
+
 Shift-click **Legend Settings** to pick a different JSON file for the project. The chosen path is stored in `config/user_settings_path.txt`.
 
 ## Prepare a template legend

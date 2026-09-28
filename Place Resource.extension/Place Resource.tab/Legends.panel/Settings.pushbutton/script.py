@@ -12,9 +12,36 @@ __author__ = "Place Resource"
 import os
 import sys
 
-_LIB = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "lib"))
-if _LIB not in sys.path:
-    sys.path.insert(0, _LIB)
+
+def _find_lib():
+    """Put the Place Resource lib folder on sys.path.
+
+    A folder qualifies when it holds lib/legend_service.py. Keep config/ next to lib/. Checked in order:
+    1. The PLACE_RESOURCE_HOME environment variable.
+    2. The extension root, three levels above this script (repository layout).
+    3. Documents/Gensler/Python/PlaceResource under OneDrive, then the user profile.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [os.environ.get("PLACE_RESOURCE_HOME"), os.path.join(here, "..", "..", "..")]
+    for root in (os.environ.get("OneDriveCommercial"), os.environ.get("OneDrive"), os.path.expanduser("~")):
+        if root:
+            candidates.append(os.path.join(root, "Documents", "Gensler", "Python", "PlaceResource"))
+    for folder in candidates:
+        if not folder:
+            continue
+        lib = os.path.abspath(os.path.join(folder, "lib"))
+        if os.path.isfile(os.path.join(lib, "legend_service.py")):
+            if lib not in sys.path:
+                sys.path.insert(0, lib)
+            return lib
+    raise ImportError(
+        "Place Resource lib folder was not found. Copy 'lib' and 'config' to "
+        "Documents\\Gensler\\Python\\PlaceResource, or set PLACE_RESOURCE_HOME to the folder that "
+        "contains them. Checked: " + "; ".join(os.path.abspath(item) for item in candidates if item)
+    )
+
+
+_find_lib()
 
 from pyrevit import forms
 
