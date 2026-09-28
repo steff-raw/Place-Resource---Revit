@@ -179,14 +179,16 @@ def print_library_audit(rows):
             "",
             "- Legend: {0}".format(_link(row.get("legend_view_id"), row["legend"])),
             "- Category: {0}".format(row["category"]),
+            "- Source: {0}".format(row.get("source") or "Excel library"),
             "- Sheet: {0}".format(row["sheet"]),
             "- Rows: {0}".format(", ".join(row["codes"]) or "None"),
-            "- Codes no longer in the Excel library: {0}".format(_id_list(row["missing_codes"])),
+            "- Codes no longer in the source: {0}".format(_id_list(row["missing_codes"])),
             "- Filled Region Types missing from the model: {0}".format(_id_list(row["missing_region_types"])),
             "- Type Marks on the sheet that are in the library but not in the legend: {0}".format(
                 _id_list(row["unlisted_marks"])
             ),
             "- Needs update: {0}".format("Yes" if row["outdated"] else "No"),
+            "- Problem: {0}".format(row.get("problem") or "None"),
             "- Last update: {0}".format(row.get("updated_utc") or "Unknown"),
         ]))
 

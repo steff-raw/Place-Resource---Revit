@@ -27,6 +27,8 @@ PlaceResource/                     deployed to Documents/Gensler/Python/PlaceRes
   - **Type legends** (`legends.json`, `legend_service.py`): built from types visible in a view or sheet.
   - **Library legends** (`library_legends.json` + `legend_library.xlsx`, `library_legend_service.py`): built from Excel rows (graphic + title + description).
   - `iter_generated_legends(doc, role)` filters by role. Never mix them.
+- **Library legend rows** come from a master legend in the model when one is linked (`project_settings`, `master_legend_service.read_master`, pure detection in `legend_library.rows_from_items`), else from Excel. Master rows are copied with `ElementTransformUtils.CopyElements` (the Type Mark is left out).
+- **Generated text** always goes through `legend_component_service.resolve_text_type` (model setting first, then JSON). Call `ui_service.ensure_text_style` before any transaction so a missing type opens the picker instead of failing.
 - Excel is read by `lib/xlsx_reader.py` (stdlib `zipfile` + `xml.etree`). Never add openpyxl/xlrd or Excel automation (offline-security rule 6). Regenerate the sample with `python tests/xlsx_fixture.py` from `PlaceResource`.
 - There is no `.extension` or `.tab` folder in this repo. The panel is dropped into the user's existing tab.
 - `_find_lib()` is duplicated in every script (it runs before any import is possible). Change all copies together. Lookup order: `PLACE_RESOURCE_HOME`, `PlaceResource` next to the panel, then `Documents/Gensler/Python/PlaceResource` under OneDrive or the user profile.

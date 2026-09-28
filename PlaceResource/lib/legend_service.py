@@ -28,7 +28,7 @@ from legend_component_service import (
     LegendComponentService,
     duplicate_template,
     find_template_legend,
-    find_text_type,
+    resolve_text_type,
     unique_view_name,
 )
 from logging_service import get_logger
@@ -126,8 +126,8 @@ def create_or_update(doc, source_view, definition, settings, options):
         )
 
     try:
-        body_type = find_text_type(doc, definition["styles"]["text_note_type"])
-        header_type = find_text_type(doc, definition["styles"]["header_text_note_type"])
+        body_type = resolve_text_type(doc, definition["styles"]["text_note_type"])
+        header_type = resolve_text_type(doc, definition["styles"]["header_text_note_type"])
     except LegendOperationError as ex:
         report["status"] = "failed"
         report["errors"].append(str(ex))

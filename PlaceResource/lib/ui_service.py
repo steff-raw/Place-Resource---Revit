@@ -128,6 +128,8 @@ def pick_sheet_point(uidoc):
 
 
 SETTINGS_ACTIONS = (
+    "Choose legend text style",
+    "Link master legends",
     "Validate configuration",
     "Choose configuration file",
     "Use the built-in configuration",
@@ -137,17 +139,101 @@ SETTINGS_ACTIONS = (
 
 def choose_settings_action():
     """Return the settings command the user picked, or None."""
-    return dialogs.choose_command(
+    index = dialogs.choose_from_list(
         "Legend Settings",
-        "Legend settings",
-        [
-            (SETTINGS_ACTIONS[0], SETTINGS_ACTIONS[0], "Check the current JSON file and list its legends."),
-            (SETTINGS_ACTIONS[1], SETTINGS_ACTIONS[1], "Use a project-specific JSON file from now on."),
-            (SETTINGS_ACTIONS[2], SETTINGS_ACTIONS[2], "Go back to config/legends.json."),
-            (SETTINGS_ACTIONS[3], SETTINGS_ACTIONS[3], "Show the path of the current JSON file to open in your editor."),
-        ],
-        footer="Office styles and spacing are stored in JSON, not in the Python code.",
+        list(SETTINGS_ACTIONS),
+        prompt="Choose a setting. Text style and master legends are saved in this Revit model.",
+        button_text="Open",
     )
+    return None if index is None else SETTINGS_ACTIONS[index]
+
+
+def choose_text_type(doc, reason=None):
+    """Pick the legend text style from the project's text note types and save it in the model.
+
+    Returns the chosen name, or None when cancelled.
+    """
+    from legend_component_service import text_type_names
+    import project_settings
+    names = text_type_names(doc)
+    if not names:
+        dialogs.alert("This project has no text note types.", title="Legend text style")
+        return None
+    current = project_settings.read(doc)["text_type"]
+    labels = ["{0}{1}".format(name, "   (current)" if name == current else "") for name in names]
+    prompt = "Choose the text style for legend text (titles, descriptions, headings)."
+    if reason:
+        prompt = "{0} {1}".format(reason, prompt)
+    index = dialogs.choose_from_list(
+        "Legend text style", labels, prompt=prompt, button_text="Use this style",
+        selected_index=names.index(current) if current in names else 0,
+    )
+    if index is None:
+        return None
+    data = project_settings.read(doc)
+    data["text_type"] = names[index]
+    project_settings.save(doc, data, "Place Resource: legend text style")
+    return names[index]
+
+
+def ensure_text_style(doc, fallback_names):
+    """Make sure generated legend text has a text type before anything changes.
+
+    When neither the saved style nor the settings-file names exist, the picker opens.
+    Returns True to continue, False when the user cancelled.
+    """
+    from legend_component_service import text_types_resolve
+    names = sorted(set(name for name in fallback_names if name))
+    if text_types_resolve(doc, names):
+        return True
+    return choose_text_type(
+        doc,
+        reason="The text style in the settings file ({0}) is not in this project.".format(", ".join(names)),
+    ) is not None
+
+
+def link_master_legends(doc, category_names):
+    """Link categories to master legends in the model, one at a time, until the user closes the list.
+
+    Returns the number of links changed.
+    """
+    from master_legend_service import candidate_master_legends
+    import project_settings
+    changed = 0
+    while True:
+        data = project_settings.read(doc)
+        labels = []
+        for category in category_names:
+            view = project_settings.master_for(doc, category)
+            if category in data["masters"] and view is None:
+                target = "linked legend was deleted"
+            else:
+                target = view.Name if view is not None else "Excel library"
+            labels.append("{0}   ->   {1}".format(category, target))
+        index = dialogs.choose_from_list(
+            "Link master legends", labels,
+            prompt="Choose a category to link to a master legend in this model. Close when done.",
+            button_text="Change",
+        )
+        if index is None:
+            return changed
+        category = category_names[index]
+        legends = candidate_master_legends(doc)
+        options = ["Use the Excel library (no master legend)"] + [view.Name for view in legends]
+        pick = dialogs.choose_from_list(
+            "Master legend for {0}".format(category), options,
+            prompt="Choose the legend that holds the {0} standard. Type Mark on the left of each row, "
+                   "then the graphic, then the description.".format(category),
+            button_text="Link",
+        )
+        if pick is None:
+            continue
+        if pick == 0:
+            data["masters"].pop(category, None)
+        else:
+            data["masters"][category] = legends[pick - 1].UniqueId
+        project_settings.save(doc, data, "Place Resource: link master legend")
+        changed += 1
 
 
 def pick_settings_file():

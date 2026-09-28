@@ -592,9 +592,48 @@ def find_text_type(doc, type_name):
             continue
     available = ", ".join(sorted(item.Name for item in found)[:20]) or "(none)"
     raise LegendOperationError(
-        "Text note type '{0}' was not found. Create it in the project or change the settings file. "
-        "Available types include: {1}.".format(type_name, available)
+        "Text note type '{0}' was not found. Choose the legend text style in Place Resources > Settings, "
+        "or create the type in the project. Available types include: {1}.".format(type_name, available)
     )
+
+
+def text_type_names(doc):
+    """Return every text note type name in the project, sorted."""
+    from version_adapter import get_db
+    DB = get_db()
+    names = set()
+    for text_type in DB.FilteredElementCollector(doc).OfClass(DB.TextNoteType):
+        try:
+            names.add(text_type.Name)
+        except Exception:
+            continue
+    return sorted(names, key=lambda name: name.lower())
+
+
+def resolve_text_type(doc, fallback_name):
+    """Return the text type for generated legend text.
+
+    The style chosen in Settings (saved in the model) wins for every role. Without one,
+    the name from the settings file is used.
+    """
+    from project_settings import text_type_name
+    chosen = text_type_name(doc)
+    if chosen:
+        try:
+            return find_text_type(doc, chosen)
+        except LegendOperationError:
+            LOGGER.warning("Saved legend text style '%s' is no longer in the project.", chosen)
+    return find_text_type(doc, fallback_name)
+
+
+def text_types_resolve(doc, fallback_names):
+    """True when resolve_text_type succeeds for every name. Nothing is changed."""
+    try:
+        for name in fallback_names:
+            resolve_text_type(doc, name)
+    except LegendOperationError:
+        return False
+    return True
 
 
 def _line_style(doc, style_name):

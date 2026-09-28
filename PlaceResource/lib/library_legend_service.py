@@ -25,10 +25,11 @@ from identity import (
     write_element_identity,
     write_view_identity,
 )
-from legend_component_service import LegendComponentService, find_template_legend, find_text_type, unique_view_name
+from legend_component_service import LegendComponentService, find_template_legend, resolve_text_type, unique_view_name
 from legend_library import (
     GRAPHIC_COMPONENT,
     GRAPHIC_REGION,
+    SOURCE_MASTER,
     apply_pattern,
     entries_for_codes,
     layout_rows,
@@ -43,7 +44,7 @@ from version_adapter import element_id_value, get_db
 
 LOGGER = get_logger("library_legend_service")
 
-LIBRARY_ROLES = ("library_graphic", "library_title", "library_description", "library_heading", "library_seed")
+LIBRARY_ROLES = ("library_graphic", "library_title", "library_description", "library_heading", "library_seed", "library_row")
 
 
 def library_hash(category, config, entries):
@@ -71,7 +72,7 @@ def prepare(doc, config, entries, need_template):
         if key == "heading_text_type" and not styles.get("show_heading"):
             continue
         try:
-            resolved["text_types"][key] = find_text_type(doc, styles[key])
+            resolved["text_types"][key] = resolve_text_type(doc, styles[key])
         except LegendOperationError as ex:
             problems.append(str(ex))
 
@@ -152,14 +153,21 @@ def build_library_legend(doc, config, entries, sheet=None, legend_view=None):
         report["status"] = "skipped"
         report["warnings"].append("No library rows were selected, so the legend was not changed.")
         return report
-    resolved = prepare(doc, config, entries, need_template=existing is None)
+    from_master = entries[0].source == SOURCE_MASTER
+    if from_master:
+        resolved = _prepare_master(doc, config, entries)
+    else:
+        resolved = prepare(doc, config, entries, need_template=existing is None)
     report["warnings"].extend(resolved.get("warnings") or [])
     if resolved["problems"]:
         report["errors"].extend(resolved["problems"])
         report["errors"].append("Nothing was changed in the model.")
         return report
     try:
-        view = _run(doc, config, entries, sheet, existing, resolved, report)
+        if from_master:
+            view = _run_master(doc, config, entries, sheet, existing, resolved, report)
+        else:
+            view = _run(doc, config, entries, sheet, existing, resolved, report)
     except LegendToolError as ex:
         report["errors"].append(str(ex))
         report["errors"].append("The change was rolled back. The model was not left partly updated.")
@@ -189,10 +197,13 @@ def update_all_library(doc, library_settings):
             summary["skipped"].append({"legend": view.Name, "reason": "Its sheet was deleted."})
             continue
         codes = payload.get("codes") or []
-        library = library_settings["library"].get(category) or []
+        library, source_name, problem = _library_for_payload(doc, payload, library_settings)
+        if problem:
+            summary["skipped"].append({"legend": view.Name, "reason": problem})
+            continue
         gone = missing_codes(library, codes)
         if gone:
-            summary["warnings"].append("'{0}': code(s) no longer in the Excel library: {1}.".format(view.Name, ", ".join(gone)))
+            summary["warnings"].append("'{0}': code(s) no longer in the {1}: {2}.".format(view.Name, source_name, ", ".join(gone)))
         entries = entries_for_codes(library, codes)
         if payload.get("content_hash") == library_hash(category, config, entries):
             summary["unchanged"].append({"legend": view.Name})
@@ -217,11 +228,13 @@ def audit_library(doc, library_settings):
     for view, payload in iter_generated_legends(doc, ROLE_LIBRARY_LEGEND):
         category = payload.get("category")
         config = library_settings["categories"].get(category)
-        library = library_settings["library"].get(category) or []
+        library, source_name, problem = _library_for_payload(doc, payload, library_settings)
         codes = payload.get("codes") or []
         entries = entries_for_codes(library, codes)
         sheet = _resolve_sheet(doc, payload)
         row = {
+            "source": source_name,
+            "problem": problem,
             "legend": view.Name,
             "legend_view_id": element_id_value(view.Id),
             "category": category,
@@ -266,6 +279,7 @@ def _run(doc, config, entries, sheet, existing, resolved, report):
                 if doomed:
                     delete_managed_elements(doc, doomed)
             payload = build_library_view_payload(category, codes, sheet, library_hash(category, config, entries))
+            payload["source"] = "excel"
             if write_view_identity(view, payload, doc) == "json_registry":
                 report["warnings"].append(
                     "Extensible Storage was unavailable. A local JSON registry was written and does not travel with the model."
@@ -286,8 +300,116 @@ def _run(doc, config, entries, sheet, existing, resolved, report):
     return view
 
 
-def _new_legend(doc, template, config, sheet, report):
-    """Duplicate the template legend without its contents, then name and scale it."""
+def _library_for_payload(doc, payload, library_settings):
+    """Return (entries, source name, problem) for a stored library legend: Excel rows or master legend rows."""
+    if payload.get("source") == SOURCE_MASTER:
+        master = doc.GetElement(payload.get("master_unique_id") or "")
+        if master is None:
+            return [], "master legend", "Its master legend was deleted."
+        from master_legend_service import read_master
+        entries, _notes = read_master(doc, master)
+        return entries, "master legend '{0}'".format(master.Name), None
+    return library_settings["library"].get(payload.get("category")) or [], "Excel library", None
+
+
+def _prepare_master(doc, config, entries):
+    """Master rows need only the heading text style and the master legend itself."""
+    resolved = {"problems": [], "text_types": {}, "master": entries[0].master_view}
+    if resolved["master"] is None or not getattr(resolved["master"], "IsValidObject", True):
+        resolved["problems"].append("The master legend for {0} is no longer in the model.".format(config["name"]))
+    if config["styles"].get("show_heading"):
+        try:
+            resolved["text_types"]["heading_text_type"] = resolve_text_type(doc, config["styles"]["heading_text_type"])
+        except LegendOperationError as ex:
+            resolved["problems"].append(str(ex))
+    return resolved
+
+
+def _run_master(doc, config, entries, sheet, existing, resolved, report):
+    """Copy the chosen master rows into the legend, stacked top to bottom. The Type Mark is not copied."""
+    from legend_service import _capture_viewports, _restore_viewports
+    from version_adapter import make_element_id
+    from System.Collections.Generic import List
+    DB = get_db()
+    category = config["name"]
+    master = resolved["master"]
+    codes = [entry.code for entry in entries]
+    viewports = []
+    with TransactionGroupContext(doc, "Place Resource: {0} legend".format(category)):
+        with TransactionContext(doc, "Prepare legend from master") as transaction:
+            if existing is None:
+                view = _new_legend(doc, master, config, sheet, report, keep_scale=True)
+            else:
+                view = existing
+                viewports = _capture_viewports(doc, view)
+                doomed = [element for element, payload in collect_managed_elements(doc, view)
+                          if payload.get("role") in LIBRARY_ROLES]
+                if doomed:
+                    delete_managed_elements(doc, doomed)
+            payload = build_library_view_payload(category, codes, sheet, library_hash(category, config, entries))
+            payload["source"] = SOURCE_MASTER
+            payload["master_unique_id"] = master.UniqueId
+            payload["master_name"] = master.Name
+            if write_view_identity(view, payload, doc) == "json_registry":
+                report["warnings"].append(
+                    "Extensible Storage was unavailable. A local JSON registry was written and does not travel with the model."
+                )
+        report["warnings"].extend(transaction.warnings)
+
+        with TransactionContext(doc, "Copy rows from master") as transaction:
+            service = LegendComponentService(doc, view)
+            scale = _scale(view, config)
+            cursor = 0.0
+            if config["styles"].get("show_heading"):
+                heading = service.create_text(
+                    DB.XYZ(0, 0, 0), category, resolved["text_types"]["heading_text_type"].Id, 0
+                )
+                write_element_identity(heading, build_library_element_payload(category, None, "library_heading"))
+                doc.Regenerate()
+                measured = service.measure(heading)
+                if measured is not None:
+                    service.move_top_left(heading, 0.0, 0.0)
+                    cursor = -(measured["height"] + mm_to_internal(config["layout"]["heading_gap_mm"]) * scale)
+            gap = mm_to_internal(config["layout"]["row_gap_mm"]) * scale
+            unmarked = 0
+            for entry in entries:
+                box = entry.box
+                ids = List[DB.ElementId]()
+                for value in entry.element_ids:
+                    ids.Add(make_element_id(value))
+                offset = DB.Transform.CreateTranslation(DB.XYZ(0.0 - box["left"], cursor - box["top"], 0))
+                try:
+                    copied = DB.ElementTransformUtils.CopyElements(master, ids, view, offset, DB.CopyPasteOptions())
+                except Exception as ex:
+                    raise LegendOperationError(
+                        "Revit could not copy row '{0}' from master legend '{1}'. {2}".format(entry.code, master.Name, ex)
+                    )
+                for copied_id in (list(copied) if copied is not None else []):
+                    element = doc.GetElement(copied_id)
+                    if element is None:
+                        continue
+                    try:
+                        write_element_identity(element, build_library_element_payload(category, entry.code, "library_row"))
+                    except LegendOperationError:
+                        unmarked += 1
+                cursor -= (box["top"] - box["bottom"]) + gap
+            if unmarked:
+                report["notices"].append(
+                    "{0} copied sub-element(s) could not be marked. They are removed with their parent on update.".format(unmarked)
+                )
+            if viewports:
+                _restore_viewports(doc, viewports, report)
+            doc.Regenerate()
+        report["warnings"].extend(transaction.warnings)
+    report["notices"].append("Rows copied from master legend '{0}'.".format(master.Name))
+    return view
+
+
+def _new_legend(doc, template, config, sheet, report, keep_scale=False):
+    """Duplicate a legend without its contents, then name it and (unless keep_scale) set the scale.
+
+    Legends made from a master keep the master's scale so copied text and graphics keep their proportions.
+    """
     DB = get_db()
     try:
         new_id = template.Duplicate(DB.ViewDuplicateOption.Duplicate)
@@ -300,10 +422,11 @@ def _new_legend(doc, template, config, sheet, report):
         raise LegendOperationError("Revit duplicated '{0}' but did not return the new legend.".format(template.Name))
     pattern = config["sheet_output_name_pattern"] if sheet is not None else config["output_name_pattern"]
     view.Name = unique_view_name(doc, apply_pattern(pattern, config["name"], sheet))
-    try:
-        view.Scale = int(config["scale"])
-    except Exception as ex:
-        report["warnings"].append("The legend scale could not be set to 1:{0}. {1}".format(config["scale"], ex))
+    if not keep_scale:
+        try:
+            view.Scale = int(config["scale"])
+        except Exception as ex:
+            report["warnings"].append("The legend scale could not be set to 1:{0}. {1}".format(config["scale"], ex))
     report["notices"].append("New legend '{0}' duplicated from '{1}'.".format(view.Name, template.Name))
     return view
 

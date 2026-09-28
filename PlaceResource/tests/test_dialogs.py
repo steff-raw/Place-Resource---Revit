@@ -88,10 +88,14 @@ class DialogTests(unittest.TestCase):
         self.assertFalse(self.dialogs.ask_yes_no("T", "Sure?"))
 
     def test_settings_actions_round_trip(self):
+        from unittest import mock
         import ui_service
-        for index, name in enumerate(_LINKS):
-            _FakeTaskDialog.answer = name
-            self.assertEqual(ui_service.choose_settings_action(), ui_service.SETTINGS_ACTIONS[index])
+        self.assertEqual(ui_service.SETTINGS_ACTIONS[:2], ("Choose legend text style", "Link master legends"))
+        for index, name in enumerate(ui_service.SETTINGS_ACTIONS):
+            with mock.patch.object(self.dialogs, "choose_from_list", return_value=index):
+                self.assertEqual(ui_service.choose_settings_action(), name)
+        with mock.patch.object(self.dialogs, "choose_from_list", return_value=None):
+            self.assertIsNone(ui_service.choose_settings_action())
 
     def test_confirm_plan_choices(self):
         import ui_service

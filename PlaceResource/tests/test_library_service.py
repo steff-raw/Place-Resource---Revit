@@ -145,7 +145,7 @@ class PrepareTests(unittest.TestCase):
         db = _fake_db(doc)
         with mock.patch.object(S, "get_db", return_value=db), \
                 mock.patch.object(version_adapter, "get_db", return_value=db), \
-                mock.patch.object(S, "find_text_type", side_effect=_text), \
+                mock.patch.object(S, "resolve_text_type", side_effect=_text), \
                 mock.patch.object(S, "find_template_legend", side_effect=_template):
             return S.prepare(doc, config, entries, need_template)
 

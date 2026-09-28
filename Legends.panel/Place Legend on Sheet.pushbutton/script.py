@@ -55,7 +55,7 @@ from legend_service import create_or_update, prepare_plan
 from logging_service import get_logger
 from placement_service import interactive_place, model_viewports_on_sheet, sheet_label
 from reporting import alert_error, print_report
-from ui_service import choose_definition, choose_named_item, confirm_delete
+from ui_service import choose_definition, choose_named_item, confirm_delete, ensure_text_style
 from validation import assert_project_document, assert_supported_source_view, definitions_for_view, view_type_token
 from version_adapter import element_id_value, get_db, make_element_id
 
@@ -188,6 +188,9 @@ def _ensure_legend(doc, source_view, definition, settings):
         no_label="Cancel",
     )
     if not create:
+        return None
+    styles = definition["styles"]
+    if not ensure_text_style(doc, [styles["text_note_type"], styles["header_text_note_type"]]):
         return None
     plan = prepare_plan(doc, source_view, definition, settings)
     allow_delete = False

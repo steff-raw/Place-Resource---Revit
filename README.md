@@ -63,11 +63,46 @@ User settings, the settings pointer file, and any JSON registry fallback are wri
 
 Shift-click **Legend Settings** to pick a different JSON file for the project. The chosen path is stored in `config/user_settings_path.txt`.
 
+## Legend text style
+
+Open **Place Resources → Settings → Choose legend text style** and pick any text note type in the project. The choice is saved in the Revit model, so each project keeps its own.
+
+- It is used for all text the tool writes: type-legend labels and headers, and library legend titles, descriptions and headings.
+- Without a saved style, the names in the settings files are used (`2.5mm Arial` by default).
+- If neither exists, the tool asks you to pick a style before it changes anything, instead of stopping with an error.
+
 ## Library legends (Legend Setup)
+
+Each category takes its rows from one of two sources:
+
+- **A master legend in the Revit model** (recommended for office standards), when one is linked in Settings.
+- **The Excel library** otherwise.
+
+### Master legends in the model
+
+1. Draw one legend per category, for example `MASTER - Walls`. For each row, left to right:
+   - the **Type Mark as a text note** (e.g. `IWS-105`), always in the left-most column
+   - the graphic: filled region, detail item, detail lines or legend component
+   - the description text
+2. Open **Settings → Link master legends**, choose the category, then choose its master legend. Choose "Use the Excel library" to unlink.
+3. **Legend Setup** and **Place Legend on Sheet** now list the master's rows by Type Mark.
+   - Selected rows are copied into the generated legend **without the Type Mark**: graphic and description, formatted exactly as in the master.
+   - The new legend keeps the master's scale.
+
+How rows are read:
+
+- The Type Mark column is the text notes lined up with the left-most text (2 mm tolerance on paper).
+- Everything else whose centre is on the same line, to the right of the Type Mark, belongs to that row. The row reaches halfway to the next Type Mark.
+- A line in the left column with no graphic (e.g. a heading "WALL TYPES") is treated as a heading and skipped.
+- A Type Mark used twice keeps the upper row, and the report says so.
+- Dimensions are not copied.
+
+**Update All** re-reads the master and rebuilds legends whose rows changed. **Audit** reports Type Marks that are no longer in the master, and a master that was deleted.
+
 
 A library legend lists rows from an Excel workbook. Each row shows a graphic, a title and a description. For example: a hatch swatch, `IWS-105`, and "Internal wall system 105".
 
-### The Excel library
+### The Excel library (when no master legend is linked)
 
 `PlaceResource/config/legend_library.xlsx` has one worksheet per category. The sheet name must match the category name in `library_legends.json`:
 
@@ -197,6 +232,9 @@ Read-only. The output lists the source view, generated legend, definition, visib
 
 ### Settings
 
+Options: Choose legend text style, Link master legends, Validate configuration, Choose configuration file, Use the built-in configuration, Show configuration file location.
+
+
 Validates the JSON, chooses another settings file, returns to the built-in file, or shows the file location so you can open it yourself. Invalid text styles are reported when a legend command runs, before any transaction starts, and the message lists text types that do exist.
 
 ## How a legend is matched to a view
@@ -298,7 +336,9 @@ A failed create or update rolls back the whole transaction group. The completion
 | `reporting.py` | Output window text and links |
 | `ui_service.py` | Definition, commit, and settings dialogs |
 | `xlsx_reader.py` | Reads .xlsx cell values with `zipfile` + `xml.etree`. No extra package |
-| `legend_library.py` | Library settings, Excel row checks, Type Mark matching, row layout (pure Python) |
+| `legend_library.py` | Library settings, Excel row checks, master-legend row detection, Type Mark matching, row layout (pure Python) |
+| `master_legend_service.py` | Reads rows from a master legend in the model |
+| `project_settings.py` | Text style and master-legend links, saved in the model |
 | `library_legend_service.py` | Build, update, update-all and audit library legends |
 | `library_ui.py` | Legend Setup and sheet library legend dialog flows |
 | `dialogs.py` | CPython-safe dialogs: Revit TaskDialog, a filterable Windows Forms list, file picker. `pyrevit.forms` is not used |
@@ -348,6 +388,16 @@ Run these on a copy of a project. Record the Revit and pyRevit versions in the t
 - [ ] A forced transaction failure rolls the new legend back. Confirm with Undo that the model matches the pre-command state.
 - [ ] Seed view direction is kept when it already says Section, and a mismatch produces a warning without writing an integer.
 - [ ] `layer_reference_planes` left false creates no reference planes. A separate test model is used before turning it on.
+
+Text style and master legends:
+
+- [ ] Settings → Choose legend text style, then Create/Update View Legend works in a project without `2.5mm Arial`.
+- [ ] Without a saved style or `2.5mm Arial`, Create/Update offers the picker, and cancelling changes nothing.
+- [ ] Link `MASTER - Walls`. Legend Setup lists its Type Marks, and the generated legend shows graphic + description without the Type Mark.
+- [ ] A master row using a filled region, a detail item and a legend component all copy. The filled region is not duplicated by its boundary lines.
+- [ ] A heading line in the master is not offered as a row.
+- [ ] Place Legend on a sheet pre-ticks Type Marks from the sheet's views using the master's rows.
+- [ ] Change a description in the master, run Update All: the generated legend updates. Delete the master: Update All skips with a clear reason.
 
 Library legends:
 

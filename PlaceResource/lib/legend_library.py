@@ -25,6 +25,9 @@ from errors import ConfigurationError
 SUPPORTED_SCHEMA = "1.0"
 GRAPHIC_REGION = "region"
 GRAPHIC_COMPONENT = "component"
+GRAPHIC_MASTER = "master"
+SOURCE_EXCEL = "excel"
+SOURCE_MASTER = "revit"
 
 _HEADER_ALIASES = {
     "code": ("code", "type mark", "mark"),
@@ -77,6 +80,11 @@ class LibraryEntry(object):
         self.graphic = graphic
         self.region_type = region_type
         self.row_number = row_number
+        # Master legend rows only: where the row lives in the Revit master legend.
+        self.source = SOURCE_EXCEL
+        self.element_ids = []
+        self.box = None
+        self.fingerprint = ""
 
     def label(self):
         """Text shown in selection lists."""
@@ -86,7 +94,118 @@ class LibraryEntry(object):
         return text
 
     def as_hash_record(self):
-        return [self.code, self.title, self.description, self.graphic, self.region_type]
+        return [self.code, self.title, self.description, self.graphic, self.region_type, self.fingerprint]
+
+
+def master_entry(row, index):
+    """Build a LibraryEntry from a rows_from_items row."""
+    entry = LibraryEntry(row["code"], "", row["description"], GRAPHIC_MASTER, "", index)
+    entry.source = SOURCE_MASTER
+    entry.element_ids = list(row["element_ids"])
+    entry.box = dict(row["box"])
+    entry.fingerprint = row["fingerprint"]
+    return entry
+
+
+def rows_from_items(items, tolerance):
+    """Find legend rows in a master legend.
+
+    ``items``: every element of the master legend as
+    {"id", "is_text", "text", "left", "right", "top", "bottom"} in model units (y up).
+
+    Rules:
+    - The Type Mark column is the text notes whose left edge is within ``tolerance``
+      of the left-most text note. Each of those texts is one row's Code.
+    - Rows are horizontal bands around each Code, split halfway between neighbouring Codes.
+      The first and last bands reach half a row pitch beyond their Code.
+    - Every other element whose centre is in a band, and that is not left of the Code, joins the row.
+    - A row with no graphic (only text) is a heading and is skipped.
+    - The Code text itself is not part of the row.
+
+    Returns (rows, notes). Each row: {"code", "description", "element_ids", "box", "fingerprint"}.
+    """
+    notes = []
+    texts = [item for item in items if item.get("is_text") and (item.get("text") or "").strip()]
+    if not texts:
+        return [], ["The master legend has no text notes. Put the Type Mark text at the left of each row."]
+    min_left = min(item["left"] for item in texts)
+    marks = [item for item in texts if item["left"] <= min_left + tolerance]
+    marks.sort(key=lambda item: -_centre_y(item))
+    centres = [_centre_y(mark) for mark in marks]
+    bands = []
+    for index, centre in enumerate(centres):
+        if len(centres) == 1:
+            bands.append((None, None))
+            continue
+        if index == 0:
+            upper = centre + (centre - centres[1]) / 2.0
+        else:
+            upper = (centres[index - 1] + centre) / 2.0
+        if index == len(centres) - 1:
+            lower = centre - (centres[index - 1] - centre) / 2.0
+        else:
+            lower = (centre + centres[index + 1]) / 2.0
+        bands.append((upper, lower))
+
+    mark_ids = set(mark["id"] for mark in marks)
+    members = [[] for _ in marks]
+    for item in items:
+        if item["id"] in mark_ids:
+            continue
+        centre = _centre_y(item)
+        for index, (upper, lower) in enumerate(bands):
+            if upper is not None and centre > upper:
+                continue
+            if lower is not None and centre <= lower:
+                continue
+            if item["left"] < marks[index]["left"] - tolerance:
+                break
+            members[index].append(item)
+            break
+
+    rows = []
+    seen = {}
+    for index, mark in enumerate(marks):
+        code = (mark.get("text") or "").strip().splitlines()[0].strip()
+        row_items = sorted(members[index], key=lambda item: (item["left"], -item["top"]))
+        graphics = [item for item in row_items if not item.get("is_text")]
+        if not graphics:
+            notes.append("'{0}' has no graphic on its row, so it was treated as a heading.".format(code))
+            continue
+        key = normalize_code(code)
+        if key in seen:
+            notes.append("Code '{0}' appears twice in the master legend. The upper row was used.".format(code))
+            continue
+        seen[key] = True
+        description = " ".join(
+            " ".join((item.get("text") or "").split()) for item in row_items if item.get("is_text")
+        ).strip()
+        box = {
+            "left": min(item["left"] for item in row_items),
+            "right": max(item["right"] for item in row_items),
+            "top": max(item["top"] for item in row_items),
+            "bottom": min(item["bottom"] for item in row_items),
+        }
+        fingerprint = "|".join(
+            "{0}:{1}:{2:.3f}:{3:.3f}:{4:.3f}:{5:.3f}".format(
+                item["id"], (item.get("text") or "").strip(),
+                item["left"] - box["left"], item["top"] - box["top"],
+                item["right"] - item["left"], item["top"] - item["bottom"],
+            )
+            for item in row_items
+        )
+        rows.append({
+            "code": code,
+            "description": description,
+            "element_ids": [item["id"] for item in row_items],
+            "box": box,
+            "fingerprint": fingerprint,
+        })
+    return rows, notes
+
+
+def _centre_y(item):
+    return (item["top"] + item["bottom"]) / 2.0
 
 
 def default_settings_path():
@@ -110,15 +229,29 @@ def load_library_settings(path=None, read_workbook=None):
         library_path = os.path.join(os.path.dirname(settings_path), library_path)
     if read_workbook is None:
         from xlsx_reader import read_workbook
-    workbook = read_workbook(library_path)
-    library, warnings = parse_library(workbook, list(categories.keys()))
+    library_error = None
+    try:
+        workbook = read_workbook(library_path)
+        library, warnings = parse_library(workbook, list(categories.keys()))
+    except ConfigurationError as ex:
+        # Master legends in the model still work when the Excel library cannot be read.
+        library_error = str(ex)
+        library = OrderedDict((name, []) for name in categories)
+        warnings = [library_error]
     return {
         "path": settings_path,
         "library_path": library_path,
         "categories": categories,
         "library": library,
+        "library_error": library_error,
         "warnings": warnings,
     }
+
+
+def category_names(path=None):
+    """Category names from library_legends.json, without reading the Excel workbook."""
+    settings_path = path or default_settings_path()
+    return list(validate_settings(_read_json(settings_path), settings_path).keys())
 
 
 def validate_settings(data, label="library_legends.json"):

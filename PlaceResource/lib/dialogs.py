@@ -64,7 +64,7 @@ def ask_yes_no(title, instruction, content=None, yes_label="Yes", no_label="No")
     return choice == "yes"
 
 
-def choose_from_list(title, labels, prompt=None, button_text="Select"):
+def choose_from_list(title, labels, prompt=None, button_text="Select", selected_index=0):
     """Pick one entry from a list. Returns its index, or None when cancelled.
 
     No Python event handlers are attached to the form, so .NET never calls back
@@ -107,7 +107,7 @@ def choose_from_list(title, labels, prompt=None, button_text="Select"):
     box.IntegralHeight = False
     for label in labels:
         box.Items.Add(label)
-    box.SelectedIndex = 0
+    box.SelectedIndex = selected_index if selected_index is not None and 0 <= selected_index < len(labels) else 0
 
     buttons = FlowLayoutPanel()
     buttons.Dock = DockStyle.Bottom

@@ -54,6 +54,7 @@ from legend_service import update_all
 from library_legend_service import update_all_library
 from logging_service import get_logger
 from reporting import alert_error, print_batch, print_library_batch
+from ui_service import ensure_text_style
 from validation import assert_project_document
 
 LOGGER = get_logger("update_all_generated_legends")
@@ -78,6 +79,8 @@ def main():
         no_label="Cancel",
     )
     if not accepted:
+        return
+    if not ensure_text_style(doc, _text_type_names(settings, legends)):
         return
     failed = 0
     if legends:
@@ -107,6 +110,16 @@ def main():
             "{0} legend(s) failed. The output window lists the errors. "
             "Successful legends were kept.".format(failed),
         )
+
+
+def _text_type_names(settings, legends):
+    """Text types the type legends in this model need, from the settings file."""
+    used = set(payload.get("legend_definition_id") for _view, payload in legends)
+    names = []
+    for definition in settings["data"]["legend_definitions"]:
+        if definition["id"] in used:
+            names.extend([definition["styles"]["text_note_type"], definition["styles"]["header_text_note_type"]])
+    return names
 
 
 def _any_definition_confirms(settings):

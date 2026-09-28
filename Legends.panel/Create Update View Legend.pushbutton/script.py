@@ -55,7 +55,7 @@ from legend_service import create_or_update, prepare_plan
 from logging_service import get_logger
 from placement_service import interactive_place, legend_viewport_on_sheet, sheet_label
 from reporting import alert_error, print_plan, print_report
-from ui_service import choose_definition, confirm_delete, confirm_plan
+from ui_service import choose_definition, confirm_delete, confirm_plan, ensure_text_style
 from validation import (
     assert_project_document,
     assert_supported_source_view,
@@ -99,6 +99,9 @@ def main():
     if definition is None:
         return
     assert_supported_source_view(view, definition)
+    styles = definition["styles"]
+    if not ensure_text_style(doc, [styles["text_note_type"], styles["header_text_note_type"]]):
+        return
     plan = prepare_plan(doc, view, definition, settings)
     print_plan(plan, definition)
     if plan["blocking_errors"]:
