@@ -113,7 +113,7 @@ BEHAVIOUR_DEFAULTS = {
 
 
 def extension_root():
-    """Return the extension directory that contains lib and config."""
+    """Return the PlaceResource folder that contains lib and config."""
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -141,7 +141,7 @@ def resolve_settings_path():
             if not os.path.isfile(custom):
                 raise ConfigurationError(
                     "The configured settings file does not exist: {0}. "
-                    "Open Place Resource > Legends > Settings and choose a file, "
+                    "Open Place Resources > Settings and choose a file, "
                     "or delete {1}.".format(custom, pointer)
                 )
             return custom
@@ -265,7 +265,7 @@ def _read_json(path):
     if not os.path.isfile(path):
         raise ConfigurationError(
             "Cannot find settings file {0}. Install the extension config folder "
-            "or choose a file from Place Resource > Legends > Settings.".format(path)
+            "or choose a file from Place Resources > Settings.".format(path)
         )
     try:
         with open(path, "r", encoding="utf-8-sig") as handle:

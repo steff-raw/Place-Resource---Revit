@@ -1,4 +1,4 @@
 __pycache__/
 *.pyc
-Place Resource.extension/config/user_settings_path.txt
-Place Resource.extension/config/registries/
+PlaceResource/config/user_settings_path.txt
+PlaceResource/config/registries/

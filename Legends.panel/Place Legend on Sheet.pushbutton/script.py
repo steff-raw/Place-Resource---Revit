@@ -18,11 +18,11 @@ def _find_lib():
 
     A folder qualifies when it holds lib/legend_service.py. Keep config/ next to lib/. Checked in order:
     1. The PLACE_RESOURCE_HOME environment variable.
-    2. The extension root, three levels above this script (repository layout).
+    2. PlaceResource next to Legends.panel (repository layout).
     3. Documents/Gensler/Python/PlaceResource under OneDrive, then the user profile.
     """
     here = os.path.dirname(os.path.abspath(__file__))
-    candidates = [os.environ.get("PLACE_RESOURCE_HOME"), os.path.join(here, "..", "..", "..")]
+    candidates = [os.environ.get("PLACE_RESOURCE_HOME"), os.path.join(here, "..", "..", "PlaceResource")]
     for root in (os.environ.get("OneDriveCommercial"), os.environ.get("OneDrive"), os.path.expanduser("~")):
         if root:
             candidates.append(os.path.join(root, "Documents", "Gensler", "Python", "PlaceResource"))

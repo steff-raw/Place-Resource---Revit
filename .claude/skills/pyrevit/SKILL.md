@@ -1,6 +1,6 @@
 ---
 name: pyrevit
-description: Conventions, Revit API pitfalls and a review checklist for the Place Resource pyRevit extension. Use when writing, reviewing or debugging any pushbutton script, lib/ service, bundle.yaml or config JSON in "Place Resource.extension", or when a question involves pyRevit engines (IronPython vs CPython), Revit API calls, transactions, legends, Extensible Storage or pyRevit forms.
+description: Conventions, Revit API pitfalls and a review checklist for the Place Resource pyRevit extension. Use when writing, reviewing or debugging any pushbutton script, lib/ service, bundle.yaml or config JSON in Legends.panel or PlaceResource, or when a question involves pyRevit engines (IronPython vs CPython), Revit API calls, transactions, legends, Extensible Storage or pyRevit forms.
 ---
 
 # pyRevit extension skill
@@ -10,16 +10,21 @@ Nothing here has been confirmed inside Revit. Never state a Revit or pyRevit ver
 ## Repo layout
 
 ```
-Place Resource.extension/
-  Place Resource.tab/Legends.panel/<Name>.pushbutton/
+Legends.panel/                     deployed into a .tab folder (e.g. MyTool.extension/Bham-Tools.Tab/)
+  bundle.yaml                      title "Place Resources", button order
+  <Name>.pushbutton/
       script.py      thin command: validate -> plan -> confirm -> service call -> report
       bundle.yaml    title, tooltip, author, context (doc-project)
       icon.png       32x32 (add icon.dark.png for dark theme if wanted)
       config.py      optional shift-click behaviour (Settings button)
-  lib/               all Revit logic; pyRevit adds it to sys.path, scripts also insert it
-  config/            legends.json, parameter_aliases.json, schema.json
-  tests/             pure-Python unittest, no Revit
+PlaceResource/                     deployed to Documents/Gensler/Python/PlaceResource
+  lib/               all Revit logic; each script's _find_lib() puts it on sys.path
+  config/            legends.json, parameter_aliases.json, schema.json (must sit next to lib/)
+  tests/             pure-Python unittest, no Revit (not deployed)
 ```
+
+- There is no `.extension` or `.tab` folder in this repo. The panel is dropped into the user's existing tab.
+- `_find_lib()` is duplicated in every script (it runs before any import is possible). Change all copies together. Lookup order: `PLACE_RESOURCE_HOME`, `PlaceResource` next to the panel, then `Documents/Gensler/Python/PlaceResource` under OneDrive or the user profile.
 
 Rules:
 - Scripts stay thin. Revit calls go into a `lib/*_service.py`.
@@ -85,7 +90,7 @@ Performance:
 
 ## Tests
 
-From `Place Resource.extension`:
+From `PlaceResource`:
 ```bash
 python -m unittest discover -s tests -v
 ```
@@ -102,4 +107,4 @@ python -m unittest discover -s tests -v
 - [ ] ElementIds go through `version_adapter`
 - [ ] New settings are in JSON, `schema.json` and `configuration.py` validation
 - [ ] `python -m unittest discover -s tests` passes
-- [ ] README / CHANGELOG are updated and no untested version is claimed
+- [ ] README is updated and no untested version is claimed
