@@ -94,15 +94,17 @@ def _place_from_sheet(doc, uidoc, sheet, settings):
                 sheet_label(sheet)
             )
         )
-    labels = ["{0} ({1})".format(view.Name, view_type_token(view)) for _viewport, view in pairs]
+    labels = ["All views on this sheet (combined legend)"]
+    labels.extend("{0} ({1})".format(view.Name, view_type_token(view)) for _viewport, view in pairs)
     selected = choose_named_item(
-        "Select the model view on this sheet",
-        list(range(len(pairs))),
+        "Select the source for the legend",
+        list(range(len(labels))),
         lambda index: labels[index],
     )
     if selected is None:
         return
-    _viewport, source_view = pairs[selected]
+    # Index 0 uses the sheet itself as the source: types from every supported view on it are merged.
+    source_view = sheet if selected == 0 else pairs[selected - 1][1]
     definitions = definitions_for_view(settings, source_view)
     if not definitions:
         raise LegendToolError(

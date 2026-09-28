@@ -72,7 +72,7 @@ The tool never modifies the template view. It duplicates it, renames the duplica
 
 ### Create / Update View Legend
 
-1. Open a floor plan, ceiling plan, section, or elevation.
+1. Open a floor plan, ceiling plan, section, or elevation, **or a sheet**.
 2. Run **Place Resources → Create / Update View Legend**.
 3. Choose Wall Type Legend, Fire-Rated Wall Legend, Acoustic Wall Legend, or Door Type Legend.
 4. Read the preview in the output window. It lists visible instances, unique types, exclusions, and an estimated size taken from the JSON spacing.
@@ -80,12 +80,21 @@ The tool never modifies the template view. It duplicates it, renames the duplica
 6. If types disappeared from the view, confirm or decline removal. Declining keeps those managed entries. Manual notes are never deleted.
 7. If you picked the sheet option, choose the sheet and pick a point.
 
+#### From a sheet
+
+When the active view is a sheet, the sheet is the source:
+
+- Types are collected from every view placed on the sheet whose type is in the definition's `source_view_types` (plans, sections, elevations). Legends, schedules and drafting views are skipped.
+- A wall that shows in more than one of those views counts once.
+- The first option in the dialog creates or updates the combined legend and places it on this sheet. If it is already on the sheet, its position is kept.
+- The legend is named from the sheet number and name, for example `WALL LEGEND - A101 - Plans`, and is linked to the sheet. Adding or removing views on the sheet changes the legend on the next update.
+
 The command shows the source view, definition, instance count, unique type count, any existing generated legend, and the update mode before it commits.
 
 ### Place Legend on Sheet
 
 - From a model view, the command finds sheets that already contain that view. If several exist, you pick one. If none exist, you pick any sheet.
-- From a sheet, you pick one model viewport on that sheet. The tool finds or creates the matching legend and places it on the active sheet.
+- From a sheet, you pick **All views on this sheet** (one combined legend) or one model viewport. The tool finds or creates the matching legend and places it on the active sheet.
 - Pick a point, or set `sheet_placement.mode` to `configured_point` and supply `anchor_x_mm` / `anchor_y_mm`.
 - A second viewport on the same sheet is refused. The existing viewport is not moved.
 - Legends may be placed on more than one sheet. Later updates restore the viewport centre when `preserve_viewport_position` is true.

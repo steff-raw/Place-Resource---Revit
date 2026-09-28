@@ -6,7 +6,11 @@ Requires the pyRevit CPython 3 engine. IronPython is not supported.
 """
 
 __title__ = "Create / Update\nView Legend"
-__doc__ = "Create or update a legend from the types visible in the active view."
+__doc__ = (
+    "Create or update a legend from the types visible in the active view. "
+    "On a sheet, types from every plan, section and elevation on the sheet are combined "
+    "and the legend is placed on that sheet."
+)
 __author__ = "Place Resource"
 
 import os
@@ -49,7 +53,7 @@ from configuration import load_settings
 from errors import LegendToolError
 from legend_service import create_or_update, prepare_plan
 from logging_service import get_logger
-from placement_service import interactive_place
+from placement_service import interactive_place, legend_viewport_on_sheet, sheet_label
 from reporting import alert_error, print_plan, print_report
 from ui_service import choose_definition, confirm_delete, confirm_plan
 from validation import (
@@ -73,17 +77,18 @@ def main():
     if view is None:
         raise LegendToolError("There is no active view. Open a plan, section, or elevation.")
     token = view_type_token(view)
-    if token == "DrawingSheet":
-        raise LegendToolError(
-            "The active view is a sheet. Open a plan, section, or elevation, "
-            "or run Place Legend on Sheet and pick a viewport."
-        )
+    sheet_mode = token == "DrawingSheet"
     if token == "Legend":
         raise LegendToolError(
             "A legend cannot be the source view. Open the model view whose visible types should be listed."
         )
     available = definitions_for_view(settings, view)
     if not available:
+        if sheet_mode:
+            raise LegendToolError(
+                "Sheet '{0}' has no plan, section, or elevation placed on it that a legend definition "
+                "supports. Place a view on the sheet, or add its view type to source_view_types.".format(view.Name)
+            )
         raise LegendToolError(
             "No legend definition in the settings file supports the active view '{0}'. "
             "Open a view listed in source_view_types, or add this view type to the JSON file.".format(
@@ -99,7 +104,7 @@ def main():
     if plan["blocking_errors"]:
         alert_error("Create / Update View Legend", "\n".join(plan["blocking_errors"]))
         return
-    choices = confirm_plan(view, definition, plan)
+    choices = confirm_plan(view, definition, plan, sheet_mode=sheet_mode)
     if not choices or not choices.get("apply_changes"):
         print_report({
             "status": "preview",
@@ -125,14 +130,21 @@ def main():
     report = create_or_update(doc, view, definition, settings, {"allow_delete": allow_delete})
     if choices.get("place_on_sheet") and report.get("status") != "failed" and report.get("legend_view_id") is not None:
         legend_view = doc.GetElement(make_element_id(report["legend_view_id"]))
-        try:
-            viewport, warnings = interactive_place(doc, uidoc, view, legend_view, definition)
-        except LegendToolError as error:
-            viewport = None
-            warnings = [str(error)]
-        if viewport is None:
-            report.setdefault("warnings", []).append("The legend was saved and was not placed on a sheet.")
-        report.setdefault("warnings", []).extend(warnings or [])
+        if sheet_mode and legend_viewport_on_sheet(doc, view, legend_view) is not None:
+            report.setdefault("notices", []).append(
+                "The legend is already on sheet '{0}'. Its position was kept.".format(sheet_label(view))
+            )
+        else:
+            try:
+                viewport, warnings = interactive_place(
+                    doc, uidoc, view, legend_view, definition, active_sheet=view if sheet_mode else None
+                )
+            except LegendToolError as error:
+                viewport = None
+                warnings = [str(error)]
+            if viewport is None:
+                report.setdefault("warnings", []).append("The legend was saved and was not placed on a sheet.")
+            report.setdefault("warnings", []).extend(warnings or [])
     print_report(report)
     if report.get("status") == "failed":
         alert_error("Create / Update View Legend", "\n".join(report.get("errors") or ["The legend was not changed."]))

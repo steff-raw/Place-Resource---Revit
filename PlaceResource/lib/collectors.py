@@ -43,27 +43,97 @@ class CollectionResult(object):
         self.notices = []
         self.view_info = {}
         self.errors = []
+        self.seen_instances = set()
 
     @property
     def unique_type_count(self):
         return len(self.types)
 
 
+def is_sheet(view):
+    """Return True for a drawing sheet."""
+    try:
+        return view.ViewType.ToString() == "DrawingSheet"
+    except Exception:
+        return False
+
+
+def sheet_source_views(doc, sheet, view_types):
+    """Return the model views placed on ``sheet`` whose view type is in ``view_types``.
+
+    Legends, schedules, drafting views and other view types are skipped. Order is by view name.
+    """
+    from version_adapter import element_id_value, get_db
+    DB = get_db()
+    allowed = set(view_types or [])
+    views = []
+    seen = set()
+    try:
+        view_ids = list(sheet.GetAllPlacedViews())
+    except Exception:
+        view_ids = [viewport.ViewId for viewport in DB.FilteredElementCollector(doc, sheet.Id).OfClass(DB.Viewport)]
+    for view_id in view_ids:
+        view = doc.GetElement(view_id)
+        if view is None or element_id_value(view.Id) in seen:
+            continue
+        try:
+            if view.IsTemplate or view.ViewType.ToString() not in allowed:
+                continue
+        except Exception:
+            continue
+        seen.add(element_id_value(view.Id))
+        views.append(view)
+    views.sort(key=lambda item: item.Name)
+    return views
+
+
+def source_display_name(view):
+    """Return the name used in legend names and reports. Sheets show number and name."""
+    if is_sheet(view):
+        number = getattr(view, "SheetNumber", "") or ""
+        return "{0} - {1}".format(number, view.Name) if number else view.Name
+    return view.Name
+
+
 def collect_visible_types(doc, view, definition, aliases):
-    """Collect unique types visible in ``view`` for one legend definition."""
+    """Collect unique types visible in ``view`` for one legend definition.
+
+    When ``view`` is a sheet, every placed view whose type is in the definition's
+    source_view_types is collected and the types are merged. A wall seen in
+    several views counts once.
+    """
     result = CollectionResult()
     adapter = get_adapter(definition["category"])
     result.view_info = _view_info(view)
-    result.notices.extend(_visibility_notices(view))
-    _warn_if_category_hidden(doc, view, adapter, result)
+    if is_sheet(view):
+        views = sheet_source_views(doc, view, definition.get("source_view_types"))
+        result.view_info["source_views"] = [item.Name for item in views]
+        if views:
+            result.notices.append("Sheet '{0}': types were collected from {1} view(s): {2}.".format(
+                source_display_name(view), len(views), ", ".join(item.Name for item in views)
+            ))
+        else:
+            result.warnings.append(
+                "Sheet '{0}' has no {1} view placed on it, so no types were collected.".format(
+                    source_display_name(view), " / ".join(definition.get("source_view_types") or [])
+                )
+            )
+    else:
+        views = [view]
 
     include = definition.get("include") or {}
     grouped = {}
-    for element in _view_instances(doc, view, adapter):
-        _consume_instance(doc, view, adapter, element, include, grouped, result, is_linked=False, link_name=None)
+    for source in views:
+        for notice in _visibility_notices(source):
+            if notice not in result.notices:
+                result.notices.append(notice)
+        _warn_if_category_hidden(doc, source, adapter, result)
+        for element in _view_instances(doc, source, adapter):
+            _consume_instance(doc, source, adapter, element, include, grouped, result, is_linked=False, link_name=None)
 
     if include.get("linked_models"):
-        _collect_links(doc, view, adapter, include, definition, grouped, result)
+        for source in views:
+            _collect_links(doc, source, adapter, include, definition, grouped, result)
     else:
         result.notices.append("Linked models are excluded by the legend definition.")
 
@@ -110,6 +180,10 @@ def _consume_instance(doc, view, adapter, element, include, grouped, result, is_
         result.notices.append(
             "A wall with type id {0} has an unrecognised wall kind and was included.".format(facts.get("type_id"))
         )
+    instance_key = ("host", element_id_value(element.Id))
+    if instance_key in result.seen_instances:
+        return
+    result.seen_instances.add(instance_key)
     bucket = grouped.get(facts["type_id"])
     if bucket is None:
         grouped[facts["type_id"]] = facts
@@ -158,6 +232,9 @@ def _collect_links(doc, view, adapter, include, definition, grouped, result):
 
 def _consume_linked_element(doc, view, adapter, element, include, definition, grouped, result, link):
     from version_adapter import element_id_value
+    instance_key = ("link", element_id_value(link.Id), element_id_value(element.Id))
+    if instance_key in result.seen_instances:
+        return
     try:
         facts = adapter.describe_instance(doc, view, element)
     except Exception:
@@ -193,6 +270,7 @@ def _consume_linked_element(doc, view, adapter, element, include, definition, gr
             )
         )
         return
+    result.seen_instances.add(instance_key)
     host_type_id = element_id_value(host_type.Id)
     bucket = grouped.get(host_type_id)
     if bucket is None:

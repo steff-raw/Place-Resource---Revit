@@ -7,7 +7,7 @@ annotation, and its sheet viewport position are written.
 
 from collections import Counter
 
-from collectors import collect_visible_types
+from collectors import collect_visible_types, source_display_name
 from configuration import apply_name_pattern
 from errors import LegendOperationError, LegendToolError, UnsupportedRevitOperationError
 from identity import (
@@ -674,7 +674,7 @@ def _rename_legend(doc, legend_view, source_view, definition, always):
     if not always and not definition["update"].get("sync_legend_name"):
         return
     name = apply_name_pattern(definition["output_name_pattern"], {
-        "source_view_name": source_view.Name,
+        "source_view_name": source_display_name(source_view),
         "definition_id": definition["id"],
         "view_type": source_view.ViewType.ToString(),
     })
@@ -755,7 +755,7 @@ def _empty_report(source_view, definition, plan):
     return {
         "status": "preview",
         "source_view_id": element_id_value(source_view.Id),
-        "source_view_name": source_view.Name,
+        "source_view_name": source_display_name(source_view),
         "source_view_type": collection.view_info.get("view_type"),
         "legend_view_id": element_id_value(plan["existing"].Id) if plan["existing"] is not None else None,
         "legend_view_name": plan["existing_name"],

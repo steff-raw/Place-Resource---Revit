@@ -34,16 +34,21 @@ def assert_supported_source_view(view, definition):
     except Exception:
         pass
     token = view_type_token(view)
+    allowed = list(definition.get("source_view_types") or [])
     if token == "DrawingSheet":
-        raise ValidationError(
-            "The active view is a sheet. Open a plan, section, or elevation, "
-            "or run Place Legend on Sheet and pick a viewport."
-        )
+        from collectors import sheet_source_views
+        if not sheet_source_views(view.Document, view, allowed):
+            raise ValidationError(
+                "Sheet '{0}' has no {1} view placed on it for '{2}'. Place a view on the sheet, "
+                "or open the model view itself.".format(
+                    _view_name(view), ", ".join(allowed), definition.get("display_name") or definition.get("id")
+                )
+            )
+        return token
     if token == "Legend":
         raise ValidationError(
             "A legend cannot be the source view. Open the model view whose visible types should be listed."
         )
-    allowed = list(definition.get("source_view_types") or [])
     if token not in allowed:
         raise ValidationError(
             "View '{0}' is a {1} view. '{2}' supports: {3}.".format(
@@ -57,9 +62,18 @@ def assert_supported_source_view(view, definition):
 
 
 def definitions_for_view(settings, view):
-    """Return legend definitions whose source_view_types include this view."""
+    """Return legend definitions whose source_view_types include this view.
+
+    For a sheet, a definition matches when any view placed on the sheet has a supported type.
+    """
     token = view_type_token(view)
     matched = []
+    if token == "DrawingSheet":
+        from collectors import sheet_source_views
+        for definition in settings["data"]["legend_definitions"]:
+            if sheet_source_views(view.Document, view, definition.get("source_view_types", [])):
+                matched.append(definition)
+        return matched
     for definition in settings["data"]["legend_definitions"]:
         if token in definition.get("source_view_types", []):
             matched.append(definition)

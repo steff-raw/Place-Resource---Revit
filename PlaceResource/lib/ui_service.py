@@ -25,11 +25,12 @@ def choose_definition(definitions):
     return definitions[index]
 
 
-def confirm_plan(source_view, definition, plan):
+def confirm_plan(source_view, definition, plan, sheet_mode=False):
     """Show the summary and ask whether to commit.
 
     Returns a dictionary, or None when the user cancels.
     The estimated layout is shown before any transaction starts.
+    In sheet mode the source is a sheet, and placing on that sheet is the first option.
     """
     collection = plan["collection"]
     existing = plan["existing_name"] or "None — a new legend will be duplicated from the template"
@@ -47,18 +48,31 @@ def confirm_plan(source_view, definition, plan):
             block["width"] * 304.8, block["height"] * 304.8
         ),
     ]
+    source_views = collection.view_info.get("source_views")
+    if source_views:
+        summary.insert(1, "Views on the sheet: {0}".format(", ".join(source_views)))
     if collection.warnings:
         summary.append("Warnings before commit: {0}. Details are in the output window.".format(
             len(collection.warnings)
         ))
+    preview = ("preview", "Preview only", "Leave the model unchanged. The output window keeps the preview.")
+    if sheet_mode:
+        options = [
+            ("apply_and_place", "Create or update, and place it on this sheet",
+             "If the legend is already on this sheet, its position is kept."),
+            ("apply", "Create or update only"),
+            preview,
+        ]
+    else:
+        options = [
+            ("apply", "Create or update the legend"),
+            ("apply_and_place", "Create or update, then place it on a sheet"),
+            preview,
+        ]
     choice = dialogs.choose_command(
         "Create / Update View Legend",
         "Create or update the legend for '{0}'?".format(source_view.Name),
-        [
-            ("apply", "Create or update the legend"),
-            ("apply_and_place", "Create or update, then place it on a sheet"),
-            ("preview", "Preview only", "Leave the model unchanged. The output window keeps the preview."),
-        ],
+        options,
         content="\n".join(summary),
     )
     if choice is None:

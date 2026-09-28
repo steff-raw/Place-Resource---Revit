@@ -13,6 +13,7 @@ def print_plan(plan, definition):
         "Visible instances: {0}".format(collection.instance_count),
         "Unique types: {0}".format(collection.unique_type_count),
         "Existing legend: {0}".format(plan["existing_name"] or "None"),
+        "Views collected: {0}".format(", ".join(collection.view_info.get("source_views") or []) or "Active view"),
         "",
         "## Types",
     ]
