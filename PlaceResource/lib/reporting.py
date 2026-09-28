@@ -192,20 +192,6 @@ def print_library_audit(rows):
         ]))
 
 
-def print_family_report(report):
-    """Print the result of Build Legend Family."""
-    _print_md("\n".join([
-        "# Legend family {0}".format(report.get("status")),
-        "",
-        "- Family: {0}".format(report.get("family_name")),
-        "- Types: {0}".format(report.get("types")),
-        "- Saved to: {0}".format(report.get("path") or "not saved"),
-    ]))
-    _print_messages("Warnings", report.get("warnings") or [])
-    _print_messages("Errors", report.get("errors") or [])
-    _print_messages("Notices", report.get("notices") or [])
-
-
 def alert_error(title, message):
     """Show a short dialog in Revit. Fall back to the output window if no dialog can open."""
     try:

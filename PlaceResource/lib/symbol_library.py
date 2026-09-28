@@ -38,8 +38,8 @@ def family_entries(doc, config):
     family = find_family(doc, family_name)
     if family is None:
         return [], [
-            "Family '{0}' is not loaded in this model. Load it (Insert > Load Family), or build it with "
-            "Build Legend Family.".format(family_name)
+            "Family '{0}' is not loaded in this model. Load it with Insert > Load Family, or set "
+            "family_name in library_legends.json to the name of your family.".format(family_name)
         ]
     problem = _category_problem(DB, family, family_name)
     if problem:

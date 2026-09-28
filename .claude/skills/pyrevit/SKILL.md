@@ -27,9 +27,8 @@ PlaceResource/                     deployed to Documents/Gensler/Python/PlaceRes
   - **Type legends** (`legends.json`, `legend_service.py`): built from types visible in a view or sheet.
   - **Library legends** (`library_legends.json`, `library_legend_service.py`): one symbol-family type per row, placed with `doc.Create.NewFamilyInstance(xyz, symbol, legend_view)`.
   - `iter_generated_legends(doc, role)` filters by role. Never mix them.
-- **The library is symbol families**: one Generic Annotation family per category (`PR Legend - <Category>`), type name = Type Mark, `Code`/`Description` type parameters. Read with `symbol_library.family_entries`; built with `family_builder.build_family` from a hand-made seed family (the API cannot create labels). No Excel, no master-legend parsing.
+- **The library is symbol families made by hand by the user**: one Generic Annotation family per category (`family_name`, default `PR Legend - <Category>`), type name = Type Mark, `Description` type parameter. Read with `symbol_library.family_entries`. The tool never creates or edits families.
 - **Generated text** always goes through `legend_component_service.resolve_text_type` (model setting first, then JSON). Call `ui_service.ensure_text_style` before any transaction so a missing type opens the picker instead of failing.
-- Family builder writes only `PlaceResource/config/families/*.rfa` and opens local `.rft`/`.rfa` files. Family edits run in their own transaction on the family document; never while a project transaction is open.
 - There is no `.extension` or `.tab` folder in this repo. The panel is dropped into the user's existing tab.
 - `_find_lib()` is duplicated in every script (it runs before any import is possible). Change all copies together. Lookup order: `PLACE_RESOURCE_HOME`, `PlaceResource` next to the panel, then `Documents/Gensler/Python/PlaceResource` under OneDrive or the user profile.
 

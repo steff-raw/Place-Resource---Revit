@@ -187,7 +187,6 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(categories["Walls"]["family_name"], "PR Legend - Walls")
         self.assertEqual(categories["Fire Strategy"]["family_name"], "PR Legend - Fire Strategy")
         self.assertEqual(categories["Walls"]["description_parameter"], "Description")
-        self.assertEqual(categories["Walls"]["builder"]["seed_family_path"], "PR Legend Seed.rfa")
 
     def test_old_excel_schema_is_rejected_with_a_hint(self):
         with self.assertRaises(ConfigurationError) as caught:
@@ -203,7 +202,6 @@ class SettingsTests(unittest.TestCase):
         bad = copy.deepcopy(base); bad["categories"][0]["scale"] = 0; cases.append(bad)
         bad = copy.deepcopy(base); bad["defaults"]["styles"]["heading_text_type"] = ""; cases.append(bad)
         bad = copy.deepcopy(base); bad["defaults"]["layout"]["row_gap_mm"] = -1; cases.append(bad)
-        bad = copy.deepcopy(base); bad["defaults"]["builder"]["swatch_width_mm"] = 0; cases.append(bad)
         bad = copy.deepcopy(base); bad["defaults"]["family_name"] = ""; cases.append(bad)
         for data in cases:
             with self.assertRaises(ConfigurationError):

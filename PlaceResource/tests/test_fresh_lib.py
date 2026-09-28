@@ -53,7 +53,7 @@ class FreshLibTests(unittest.TestCase):
 
     def test_every_button_reloads_edited_lib_code(self):
         scripts = glob.glob(os.path.join(PANEL, "*", "script.py")) + glob.glob(os.path.join(PANEL, "*", "config.py"))
-        self.assertEqual(len(scripts), 8)
+        self.assertEqual(len(scripts), 7)
         for script in scripts:
             self._write_probe("first")
             self._run_finder(script)

@@ -9,7 +9,6 @@ Legends.panel/        pyRevit panel. Copy into any .tab folder, e.g. MyTool.exte
 PlaceResource/
     lib/              Python modules used by the buttons (required)
     config/           legends.json, parameter_aliases.json, schema.json, library_legends.json (required)
-                      families/  seed family and built legend families (.rfa)
     tests/            unit tests, run outside Revit (not deployed)
 .claude/skills/       Claude Code skills (pyrevit, revit-api). Not deployed
 ```
@@ -86,29 +85,13 @@ The library lives in Revit as **one Generic Annotation family per category**, fo
 - **Each type draws everything for its row:** the hatch swatch, the code and the description.
 - **Changes flow through:** edit or reload the family and every legend using it updates, without running the tool.
 
-### Seed family (make once)
+### Make the legend family (by hand, once per category)
 
-The Revit API cannot create labels, so **Build Legend Family** starts from a seed family you make once:
-
-1. New family → **Generic Annotation** (Metric).
-2. Add two **type** text parameters: `Code` and `Description`.
-3. Place a **label** for `Code` and a label for `Description`, to the right of the origin. The swatch is drawn from the origin 15 mm to the right and 8 mm down, so start the labels at about 20 mm.
-4. Save it as `PlaceResource\config\families\PR Legend Seed.rfa`.
-
-Without a seed, the builder still works but the family shows the hatch only.
-
-### Build Legend Family
-
-1. Run **Place Resources → Build Legend Family** and choose a category.
-2. Tick the codes:
-   - **Walls, Floors, Ceilings, Doors:** every Type Mark on model types. The description comes from the model type's `Description` (or `Type Comments`).
-   - **Zone categories:** the project's Filled Region Types. The code is the region type name.
-3. The builder makes one type per code, sets `Code` and `Description`, and draws one swatch per hatch.
-   - The hatch is the Filled Region Type named like the code (`hatch_name_pattern`, default `{code}`).
-   - Each swatch has a `Show <hatch>` Yes/No type parameter, so every type shows only its own hatch.
-   - Codes without a matching Filled Region Type are listed, and those types show no hatch.
-4. The family is saved to `PlaceResource\config\families\<family name>.rfa` and loaded into the model. If it was already loaded, it is reloaded, so existing legends update.
-5. You can also make or edit the family by hand. The tool only needs: type name = code, and a `Description` type parameter for the lists.
+1. **New family:** Generic Annotation (Metric). Name it `PR Legend - <Category>`, e.g. `PR Legend - Walls`, or set `family_name` in `library_legends.json` to your own name.
+2. **One type per code:** the type name must be the Type Mark exactly, e.g. `IWS-105`. This is how the tool finds the type for a Type Mark.
+3. **`Description`:** add a type text parameter called `Description` with a label. The tool shows it in the tick lists; use `description_parameter` for a different name.
+4. **Graphic:** draw the hatch or graphic per type any way you like, e.g. filled regions switched on and off by Yes/No type parameters.
+5. **Load** the family into the project or template.
 
 ### Legend Setup
 
@@ -140,12 +123,10 @@ Per category, with shared `defaults`:
 - `template_legend_name`, the name patterns and `scale`
 - `styles.heading_text_type` / `show_heading`, and `layout.row_gap_mm` / `heading_gap_mm`
 - `sheet_placement`
-- `builder`: `seed_family_path`, `family_folder`, swatch size, `hatch_name_pattern`
 
 ### Not yet confirmed in Revit
 
 - Placing annotation symbols in a legend with `NewFamilyInstance`.
-- Building a family through the API (parameters, filled regions with visibility parameters, types), and reloading an already loaded family.
 
 ## Prepare a template legend
 
@@ -310,10 +291,9 @@ A failed create or update rolls back the whole transaction group. The completion
 | `ui_service.py` | Definition, commit, and settings dialogs |
 | `legend_library.py` | Library settings (schema 2.0), Type Mark matching, row stacking (pure Python) |
 | `symbol_library.py` | Reads the category family's types from the model |
-| `family_builder.py` | Builds, saves and loads a category legend family |
 | `project_settings.py` | Legend text style, saved in the model |
 | `library_legend_service.py` | Place family symbols in legends; update-all and audit |
-| `library_ui.py` | Legend Setup, sheet library legends and Build Legend Family dialog flows |
+| `library_ui.py` | Legend Setup and sheet library legend dialog flows |
 | `dialogs.py` | CPython-safe dialogs: Revit TaskDialog, a filterable Windows Forms list, file picker. `pyrevit.forms` is not used |
 | `logging_service.py` | pyRevit logger, or the standard logger in tests |
 | `errors.py` | Actionable exceptions |
@@ -365,9 +345,9 @@ Run these on a copy of a project. Record the Revit and pyRevit versions in the t
 Text style and library families:
 
 - [ ] Settings → Choose legend text style, then Create/Update View Legend works in a project without `2.5mm Arial`.
-- [ ] Make the seed family, then Build Legend Family for Walls: one type per Type Mark, `Code`/`Description` filled, each type shows only its own hatch.
-- [ ] Build again after changing a wall type's Description: the family reloads and existing legends show the new text.
-- [ ] Zone category (Fire Strategy): Build Legend Family lists Filled Region Types; the family shows each hatch.
+- [ ] Load `PR Legend - Walls` (types IWS-105, IWS-110). Legend Setup lists them with their Description.
+- [ ] Edit the family (hatch or description) and reload it: existing legends show the change without running the tool.
+- [ ] A family that is not a Generic Annotation (or Detail Item) family is refused with a clear message.
 - [ ] Legend Setup, Walls: one symbol per ticked type, stacked under the heading.
 - [ ] Place Legend on a sheet with a plan and a section: wall Type Marks from both views are ticked.
 - [ ] Move the legend on the sheet and update: the position is kept, and a manual note in the legend survives.

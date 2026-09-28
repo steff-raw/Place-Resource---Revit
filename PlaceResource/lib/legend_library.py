@@ -38,13 +38,6 @@ DEFAULTS = {
         "anchor_y_mm": 20,
         "prevent_duplicate_on_same_sheet": True,
     },
-    "builder": {
-        "seed_family_path": "PR Legend Seed.rfa",
-        "family_folder": "families",
-        "swatch_width_mm": 15,
-        "swatch_height_mm": 8,
-        "hatch_name_pattern": "{code}",
-    },
 }
 
 
@@ -147,14 +140,13 @@ def normalize_code(value):
     return (value or "").strip().lower()
 
 
-def apply_pattern(pattern, category, sheet=None, code=None):
-    """Fill {category}, {sheet_number}, {sheet_name} and {code} in a name pattern."""
+def apply_pattern(pattern, category, sheet=None):
+    """Fill {category}, {sheet_number} and {sheet_name} in a name pattern."""
     from configuration import apply_name_pattern
     return apply_name_pattern(pattern, {
         "category": category,
         "sheet_number": getattr(sheet, "SheetNumber", "") if sheet is not None else "",
         "sheet_name": getattr(sheet, "Name", "") if sheet is not None else "",
-        "code": code or "",
     })
 
 
@@ -210,14 +202,6 @@ def _validate_category(config, prefix):
     placement = config.get("sheet_placement") or {}
     if placement.get("mode") not in ("pick_point", "configured_point"):
         raise ConfigurationError("{0}: sheet_placement.mode must be pick_point or configured_point.".format(prefix))
-    builder = config.get("builder") or {}
-    for key in ("swatch_width_mm", "swatch_height_mm"):
-        value = builder.get(key)
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
-            raise ConfigurationError("{0}: builder.{1} must be a number of millimetres above 0.".format(prefix, key))
-    for key in ("seed_family_path", "family_folder", "hatch_name_pattern"):
-        if not isinstance(builder.get(key), str):
-            raise ConfigurationError("{0}: builder.{1} must be text.".format(prefix, key))
 
 
 def _read_json(path):

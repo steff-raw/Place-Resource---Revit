@@ -21,13 +21,6 @@
       "anchor_x_mm": 20,
       "anchor_y_mm": 20,
       "prevent_duplicate_on_same_sheet": true
-    },
-    "builder": {
-      "seed_family_path": "PR Legend Seed.rfa",
-      "family_folder": "families",
-      "swatch_width_mm": 15,
-      "swatch_height_mm": 8,
-      "hatch_name_pattern": "{code}"
     }
   },
   "categories": [

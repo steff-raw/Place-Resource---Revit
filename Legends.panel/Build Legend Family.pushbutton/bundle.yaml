@@ -1,6 +1,0 @@
-title: "Build Legend\nFamily"
-tooltip: >
-  Build or rebuild a category legend family from the model: one type per Type Mark,
-  with its hatch and description. Saved and loaded into the model.
-author: Place Resource
-context: doc-project
