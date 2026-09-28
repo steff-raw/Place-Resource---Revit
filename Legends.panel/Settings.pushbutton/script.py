@@ -65,7 +65,7 @@ LOGGER = get_logger("legend_settings")
 
 def main():
     """Validate the current file or point the tool at another JSON file."""
-    action = choose_settings_action()
+    action = choose_settings_action(revit.doc)
     if action == "Choose legend text style":
         name = choose_text_type(revit.doc)
         if name:

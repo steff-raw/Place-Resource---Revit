@@ -87,6 +87,23 @@ class DialogTests(unittest.TestCase):
         _FakeTaskDialog.answer = "Close"
         self.assertFalse(self.dialogs.ask_yes_no("T", "Sure?"))
 
+    def test_sizes_scale_with_screen_dpi(self):
+        self.assertEqual(self.dialogs.scaled(820, 1.0), 820)
+        self.assertEqual(self.dialogs.scaled(820, 1.5), 1230)
+        self.assertEqual(self.dialogs.scaled(34, 1.25), 43)
+        self.assertEqual(self.dialogs.scaled(0.2, 1.0), 1)
+        self.assertEqual(self.dialogs.scaled(52, None), 52)
+
+    def test_rows_show_details(self):
+        rows = self.dialogs.row_labels(["Validate", "Choose", "Open"], ["check the file", None])
+        self.assertEqual(rows, ["Validate  —  check the file", "Choose", "Open"])
+        self.assertEqual(self.dialogs.row_labels(["A"]), ["A"])
+
+    def test_every_settings_action_has_a_detail(self):
+        import ui_service
+        self.assertEqual(len(ui_service.SETTINGS_DETAILS), len(ui_service.SETTINGS_ACTIONS))
+        self.assertTrue(all(ui_service.SETTINGS_DETAILS))
+
     def test_settings_actions_round_trip(self):
         from unittest import mock
         import ui_service

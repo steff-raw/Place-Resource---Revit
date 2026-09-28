@@ -137,13 +137,31 @@ SETTINGS_ACTIONS = (
 )
 
 
-def choose_settings_action():
+SETTINGS_DETAILS = (
+    "text note type used for all legend text; saved in this Revit model",
+    "use a legend drawn in this model as the standard for a category",
+    "check the settings file and list its legend definitions",
+    "use a project-specific settings file (JSON)",
+    "go back to the settings file shipped with the tool",
+    "show where the settings file is, to open it in your editor",
+)
+
+
+def choose_settings_action(doc=None):
     """Return the settings command the user picked, or None."""
+    prompt = "Choose a setting, then press Open. Text style and master legends are saved in this Revit model."
+    if doc is not None:
+        import project_settings
+        try:
+            prompt = "{0}\n{1}".format(prompt, project_settings.describe(project_settings.read(doc)).replace("\n", "   |   "))
+        except Exception:
+            pass
     index = dialogs.choose_from_list(
         "Legend Settings",
         list(SETTINGS_ACTIONS),
-        prompt="Choose a setting. Text style and master legends are saved in this Revit model.",
+        prompt=prompt,
         button_text="Open",
+        details=list(SETTINGS_DETAILS),
     )
     return None if index is None else SETTINGS_ACTIONS[index]
 
