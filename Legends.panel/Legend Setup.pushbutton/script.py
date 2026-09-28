@@ -1,13 +1,17 @@
 #! python3
 # -*- coding: utf-8 -*-
-"""Report differences between generated legends and their source views.
+"""Build a legend from the Excel legend library.
 
-Requires the pyRevit CPython 3 engine. IronPython is not supported.
-This command does not start a transaction.
+Choose a category, tick library rows, and the tool creates or updates the
+master legend for that category: a hatch or legend component, the Code as
+title, and the description for each row.
 """
 
-__title__ = "Audit Generated\nLegends"
-__doc__ = "Report missing, extra, and overlapping legend entries without changing the model."
+__title__ = "Legend\nSetup"
+__doc__ = (
+    "Create or update a library legend: choose a category (Walls, Fire Strategy, ...), "
+    "tick rows from the Excel library, and the legend is built with hatch, title and description."
+)
 __author__ = "Place Resource"
 
 import os
@@ -46,31 +50,24 @@ _find_lib()
 
 from pyrevit import revit
 
-from audit_service import audit_legends
-from configuration import load_settings
 from errors import LegendToolError
-from logging_service import get_logger
 from legend_library import load_library_settings
-from library_legend_service import audit_library
-from reporting import alert_error, print_audit, print_library_audit
+from library_ui import run_setup
+from logging_service import get_logger
+from reporting import alert_error
 from validation import assert_project_document
 
-LOGGER = get_logger("audit_generated_legends")
+LOGGER = get_logger("legend_setup")
 
 
 def main():
-    """Print a read-only audit of every tool-managed legend."""
+    """Load the library, then run the setup dialogs and build the legend."""
     doc = revit.doc
     assert_project_document(doc)
-    settings = load_settings()
-    print_audit(audit_legends(doc, settings))
-    try:
-        library_settings = load_library_settings()
-    except LegendToolError as error:
-        print_library_audit([])
-        LOGGER.warning("Library legends were not audited: %s", error)
-        return
-    print_library_audit(audit_library(doc, library_settings))
+    library_settings = load_library_settings()
+    for warning in library_settings["warnings"]:
+        LOGGER.warning("%s", warning)
+    run_setup(doc, library_settings)
 
 
 if __name__ == "__main__":
@@ -78,7 +75,7 @@ if __name__ == "__main__":
         main()
     except LegendToolError as error:
         LOGGER.error("%s", error)
-        alert_error("Audit Generated Legends", str(error))
+        alert_error("Legend Setup", str(error))
     except Exception as error:
-        LOGGER.exception("Audit Generated Legends failed")
-        alert_error("Audit Generated Legends", "Unexpected failure: {0}".format(error))
+        LOGGER.exception("Legend Setup failed")
+        alert_error("Legend Setup", "Unexpected failure: {0}".format(error))

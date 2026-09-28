@@ -135,6 +135,62 @@ def print_audit(audit):
     _print_messages("Audit warnings", audit.get("warnings") or [])
 
 
+def print_library_report(report):
+    """Print the result of one library legend create or update."""
+    _print_md("\n".join([
+        "# {0} legend {1}".format(report.get("category"), report.get("status")),
+        "",
+        "- Legend: {0}".format(_link(report.get("legend_view_id"), report.get("legend_view_name"))),
+        "- Sheet: {0}".format(report.get("sheet") or "Master legend (not tied to a sheet)"),
+        "- Rows: {0}".format(len(report.get("codes") or [])),
+    ]))
+    _print_messages("Codes", report.get("codes") or [])
+    _print_messages("Warnings", report.get("warnings") or [])
+    _print_messages("Errors", report.get("errors") or [])
+    _print_messages("Notices", report.get("notices") or [])
+
+
+def print_library_batch(summary):
+    """Print the Update All result for library legends."""
+    _print_md("\n".join([
+        "# Library legends",
+        "",
+        "- Updated: {0}".format(len(summary.get("updated") or [])),
+        "- Unchanged: {0}".format(len(summary.get("unchanged") or [])),
+        "- Skipped: {0}".format(len(summary.get("skipped") or [])),
+        "- Failed: {0}".format(len(summary.get("failed") or [])),
+    ]))
+    for bucket in ("updated", "skipped", "failed"):
+        for item in summary.get(bucket) or []:
+            _print_md("- {0}: {1} {2}".format(
+                item.get("legend"), bucket, item.get("reason") or "; ".join(item.get("errors") or [])
+            ))
+    _print_messages("Warnings", summary.get("warnings") or [])
+
+
+def print_library_audit(rows):
+    """Print the read-only audit of library legends."""
+    _print_md("# Library legend audit\n")
+    if not rows:
+        _print_md("No library legends were found.")
+    for row in rows:
+        _print_md("\n".join([
+            "## {0}".format(row["legend"]),
+            "",
+            "- Legend: {0}".format(_link(row.get("legend_view_id"), row["legend"])),
+            "- Category: {0}".format(row["category"]),
+            "- Sheet: {0}".format(row["sheet"]),
+            "- Rows: {0}".format(", ".join(row["codes"]) or "None"),
+            "- Codes no longer in the Excel library: {0}".format(_id_list(row["missing_codes"])),
+            "- Filled Region Types missing from the model: {0}".format(_id_list(row["missing_region_types"])),
+            "- Type Marks on the sheet that are in the library but not in the legend: {0}".format(
+                _id_list(row["unlisted_marks"])
+            ),
+            "- Needs update: {0}".format("Yes" if row["outdated"] else "No"),
+            "- Last update: {0}".format(row.get("updated_utc") or "Unknown"),
+        ]))
+
+
 def alert_error(title, message):
     """Show a short dialog in Revit. Fall back to the output window if no dialog can open."""
     try:

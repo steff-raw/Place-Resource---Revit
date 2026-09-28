@@ -95,6 +95,56 @@ def source_display_name(view):
     return view.Name
 
 
+def type_marks_for_source(doc, source, category_name, view_types):
+    """Return the sorted Type Marks of ``category_name`` elements visible in ``source``.
+
+    ``source`` is a model view, or a sheet (its placed views of ``view_types`` are used).
+    Elements come from view-scoped collectors, so hidden and filtered elements are left out.
+    """
+    from errors import ConfigurationError
+    from version_adapter import builtin_parameter, element_id_value, get_db
+    DB = get_db()
+    built_in = getattr(DB.BuiltInCategory, category_name, None)
+    if built_in is None:
+        raise ConfigurationError("Revit has no built-in category named {0}.".format(category_name))
+    views = sheet_source_views(doc, source, view_types) if is_sheet(source) else [source]
+    mark_parameter = builtin_parameter("ALL_MODEL_TYPE_MARK")
+    marks = set()
+    seen_types = set()
+    for view in views:
+        collector = DB.FilteredElementCollector(doc, view.Id).OfCategory(built_in).WhereElementIsNotElementType()
+        for element in collector:
+            type_id = element.GetTypeId()
+            key = element_id_value(type_id)
+            if key < 0 or key in seen_types:
+                continue
+            seen_types.add(key)
+            mark = type_mark(doc.GetElement(type_id), mark_parameter)
+            if mark:
+                marks.add(mark)
+    return sorted(marks)
+
+
+def type_mark(type_element, mark_parameter=None):
+    """Return the Type Mark text of an element type, or ''."""
+    if type_element is None:
+        return ""
+    if mark_parameter is None:
+        from version_adapter import builtin_parameter
+        mark_parameter = builtin_parameter("ALL_MODEL_TYPE_MARK")
+    parameter = None
+    try:
+        if mark_parameter is not None:
+            parameter = type_element.get_Parameter(mark_parameter)
+        if parameter is None:
+            parameter = type_element.LookupParameter("Type Mark")
+        if parameter is None:
+            return ""
+        return (parameter.AsString() or "").strip()
+    except Exception:
+        return ""
+
+
 def collect_visible_types(doc, view, definition, aliases):
     """Collect unique types visible in ``view`` for one legend definition.
 

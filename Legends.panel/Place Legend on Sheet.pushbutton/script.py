@@ -6,7 +6,10 @@ Requires the pyRevit CPython 3 engine. IronPython is not supported.
 """
 
 __title__ = "Place Legend\non Sheet"
-__doc__ = "Place the generated legend for a model view onto a sheet."
+__doc__ = (
+    "Place legends on a sheet. On a sheet, first choose which legends it shows: the type legend "
+    "from its views and any library legend (Walls, Fire Strategy, ...)."
+)
 __author__ = "Place Resource"
 
 import os
@@ -86,7 +89,56 @@ def main():
     _report_placement(active, legend_view, definition, viewport, warnings)
 
 
+VIEW_TYPE_LEGEND = "Type legend from the views on this sheet (legends.json)"
+
+
 def _place_from_sheet(doc, uidoc, sheet, settings):
+    """First ask which legend(s) this sheet shows, then build and place each one."""
+    from dialogs import choose_many_from_list
+    from identity import find_library_legend
+    library_settings, library_error = _load_library()
+    labels = [VIEW_TYPE_LEGEND]
+    categories = []
+    preselected = []
+    if library_settings is not None:
+        for category in library_settings["categories"]:
+            categories.append(category)
+            labels.append("Library: {0}".format(category))
+            if find_library_legend(doc, category, sheet) is not None:
+                preselected.append(len(labels) - 1)
+    prompt = "Tick the legends to show on sheet {0}. Ticked: library legends already made for this sheet.".format(
+        sheet_label(sheet)
+    )
+    if library_error:
+        prompt = "The Excel legend library could not be loaded, so only the type legend is offered. {0}".format(
+            library_error
+        )
+    chosen = choose_many_from_list("Place Legend on Sheet", labels, preselected=preselected, prompt=prompt)
+    if not chosen:
+        return
+    from library_ui import run_sheet_legend
+    for index in chosen:
+        # One legend failing does not stop the others. Each one is its own undoable change.
+        try:
+            if index == 0:
+                _place_view_legend_from_sheet(doc, uidoc, sheet, settings)
+            else:
+                run_sheet_legend(doc, uidoc, sheet, categories[index - 1], library_settings)
+        except LegendToolError as error:
+            LOGGER.error("%s", error)
+            alert_error("Place Legend on Sheet", "{0}\n\n{1}".format(labels[index], error))
+
+
+def _load_library():
+    from legend_library import load_library_settings
+    try:
+        return load_library_settings(), None
+    except LegendToolError as error:
+        LOGGER.warning("Legend library not loaded: %s", error)
+        return None, str(error)
+
+
+def _place_view_legend_from_sheet(doc, uidoc, sheet, settings):
     pairs = model_viewports_on_sheet(doc, sheet, settings["data"]["legend_definitions"])
     if not pairs:
         raise LegendToolError(

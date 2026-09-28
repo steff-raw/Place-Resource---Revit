@@ -8,7 +8,7 @@ pyRevit panel that builds legends from the types visible in the active view.
 Legends.panel/        pyRevit panel. Copy into any .tab folder, e.g. MyTool.extension/Bham-Tools.Tab/
 PlaceResource/
     lib/              Python modules used by the buttons (required)
-    config/           legends.json, parameter_aliases.json, schema.json (required)
+    config/           legends.json, parameter_aliases.json, schema.json, library_legends.json, legend_library.xlsx (required)
     tests/            unit tests, run outside Revit (not deployed)
 .claude/skills/       Claude Code skills (pyrevit, revit-api). Not deployed
 ```
@@ -63,6 +63,82 @@ User settings, the settings pointer file, and any JSON registry fallback are wri
 
 Shift-click **Legend Settings** to pick a different JSON file for the project. The chosen path is stored in `config/user_settings_path.txt`.
 
+## Library legends (Legend Setup)
+
+A library legend lists rows from an Excel workbook. Each row shows a graphic, a title and a description. For example: a hatch swatch, `IWS-105`, and "Internal wall system 105".
+
+### The Excel library
+
+`PlaceResource/config/legend_library.xlsx` has one worksheet per category. The sheet name must match the category name in `library_legends.json`:
+
+- Fire Strategy, Accessibility, Thermal Envelope, Acoustic, Bollards and Barrier Protection, Access and Maintenance, Room Use, Security Zone
+- Walls, Floors, Ceilings, Doors
+
+Columns (header in the first row, any order, not case-sensitive):
+
+| Column | Required | Meaning |
+| --- | --- | --- |
+| Code | Yes | Unique per sheet, e.g. `IWS-105`. For Walls, Floors, Ceilings and Doors it is matched to the **Type Mark** of model types. |
+| Title | No | Shown as the title. Defaults to Code. |
+| Description | No | Shown next to the title. Wraps in the description column. |
+| Graphic | No | `Region` (default) draws a filled region swatch. `Component` places a legend component of the model type whose Type Mark equals Code. |
+| Filled Region Type | For Region rows | Name of a Filled Region Type in the model. This is the hatch/colour. |
+| Notes | No | Ignored by the tool. |
+
+- The sample workbook has example rows marked "Example row". Replace them with your office standard.
+- After editing, **save in Excel as .xlsx**. The tool reads the values Excel saved and does not evaluate formulas. .xls and .xlsb files are not read.
+- The workbook is read with the Python standard library. No add-in, no Excel automation, nothing sent anywhere.
+- To use a shared library, set `library_file` in `library_legends.json` to its full path.
+
+### library_legends.json
+
+It sets, per category:
+
+- `revit_category`: `OST_Walls` etc., or `null` for zone categories
+- `template_legend_name`
+- legend name patterns
+- scale, text note types and layout in **paper millimetres**
+- `sheet_placement`
+
+Values in `defaults` apply to every category unless a category overrides them.
+
+### Revit prerequisites
+
+- **Template legend:** a legend named as in `template_legend_name`. `_TEMPLATE - LIBRARY LEGEND` is the default; walls, floors, ceilings and doors use their own template names. The legend is duplicated empty, so its contents are never copied.
+  - For **Component** rows, the category's template must contain one legend component of that category, used as a temporary seed.
+- **Filled Region Types:** every name used in the Excel library must exist in the project (Manage > Additional Settings > Filled Region Types). Missing names are listed, together with the names that do exist, before anything changes.
+- **Text note types:** the ones named in `library_legends.json` must exist (default `2.5mm Arial` / `2.5mm Arial Bold`).
+
+### Legend Setup
+
+1. Run **Place Resources → Legend Setup**.
+2. Choose a category.
+3. Tick the rows to include. All rows start ticked for a new legend; an existing legend starts with its current rows.
+4. Confirm. The master legend `<Category> LEGEND` is created or updated.
+
+Every row gets a graphic, a title and a description, stacked top to bottom under an optional category heading.
+
+### Place Legend on Sheet (library legends)
+
+On a sheet, the command first asks **which legends this sheet shows**. The list has the type legend from the sheet's views, plus one line per library category; categories already made for this sheet start ticked.
+
+For each library category you tick:
+
+- **Walls, Floors, Ceilings, Doors:** rows whose Code matches a Type Mark visible in the sheet's plans, sections or elevations start ticked. Add or remove rows as needed.
+- **Zone categories:** tick the rows that apply.
+- **Result:** a sheet legend `<Category> LEGEND - <sheet number>` is created or updated and placed on the sheet. If it is already there, its position is kept.
+
+**Update All** rebuilds library legends from their stored rows and the current Excel file. It skips legends whose content hasn't changed. **Audit** lists:
+
+- codes no longer in Excel
+- Filled Region Types missing from the model
+- Type Marks on the sheet that are in the library but not in the legend
+
+### Not yet confirmed in Revit
+
+- `FilledRegion.Create` in a legend view, and legend `Duplicate` without detailing.
+- Text note width: the tool treats `TextNote.Width` as paper space, so `title_width_mm` / `description_width_mm` are sheet millimetres. **(verify)**
+
 ## Prepare a template legend
 
 The public Revit API cannot create a legend view from nothing, and it cannot create a legend component from nothing. The tool duplicates a real legend view and copies a seed component that already exists in that view.
@@ -103,6 +179,7 @@ The command shows the source view, definition, instance count, unique type count
 
 ### Place Legend on Sheet
 
+- From a sheet, the first step is to choose which legends the sheet shows: the type legend from its views and any library legends (see Library legends above).
 - From a model view, the command finds sheets that already contain that view. If several exist, you pick one. If none exist, you pick any sheet.
 - From a sheet, you pick **All views on this sheet** (one combined legend) or one model viewport. The tool finds or creates the matching legend and places it on the active sheet.
 - Pick a point, or set `sheet_placement.mode` to `configured_point` and supply `anchor_x_mm` / `anchor_y_mm`.
@@ -220,6 +297,10 @@ A failed create or update rolls back the whole transaction group. The completion
 | `transactions.py` | Transaction groups and rollback |
 | `reporting.py` | Output window text and links |
 | `ui_service.py` | Definition, commit, and settings dialogs |
+| `xlsx_reader.py` | Reads .xlsx cell values with `zipfile` + `xml.etree`. No extra package |
+| `legend_library.py` | Library settings, Excel row checks, Type Mark matching, row layout (pure Python) |
+| `library_legend_service.py` | Build, update, update-all and audit library legends |
+| `library_ui.py` | Legend Setup and sheet library legend dialog flows |
 | `dialogs.py` | CPython-safe dialogs: Revit TaskDialog, a filterable Windows Forms list, file picker. `pyrevit.forms` is not used |
 | `logging_service.py` | pyRevit logger, or the standard logger in tests |
 | `errors.py` | Actionable exceptions |
@@ -267,6 +348,18 @@ Run these on a copy of a project. Record the Revit and pyRevit versions in the t
 - [ ] A forced transaction failure rolls the new legend back. Confirm with Undo that the model matches the pre-command state.
 - [ ] Seed view direction is kept when it already says Section, and a mismatch produces a warning without writing an integer.
 - [ ] `layer_reference_planes` left false creates no reference planes. A separate test model is used before turning it on.
+
+Library legends:
+
+- [ ] Legend Setup, Walls: a Region row (IWS-105) and a Component row. The swatch, title and description line up. The component shows the wall type with that Type Mark.
+- [ ] Legend Setup, Fire Strategy: regions only, using `_TEMPLATE - LIBRARY LEGEND`.
+- [ ] A Filled Region Type name in Excel that is not in the model: the error lists it before any change.
+- [ ] A text note that wraps: the description column width looks right on the sheet (confirms TextNote.Width is paper space).
+- [ ] Place Legend on a sheet with a plan and a section: wall Type Marks from both views are ticked.
+- [ ] Run again after moving the legend on the sheet: the position is kept, and a manual note in the legend survives.
+- [ ] Edit a description in Excel, save, run Update All: only that legend changes.
+- [ ] Excel still open with the workbook: the tool can read it.
+- [ ] Undo after a Setup removes the whole change.
 
 ## Troubleshooting
 

@@ -1,5 +1,6 @@
 title: Place Resources
 layout:
+  - Legend Setup
   - Create Update View Legend
   - Place Legend on Sheet
   - Update All Generated Legends

@@ -1,0 +1,6 @@
+title: "Legend\nSetup"
+tooltip: >
+  Build a legend from the Excel legend library: choose a category, tick rows,
+  and get hatch, title and description for each row.
+author: Place Resource
+context: doc-project

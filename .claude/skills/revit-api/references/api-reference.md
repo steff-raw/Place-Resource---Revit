@@ -224,7 +224,8 @@ Creation: `ViewPlan.Create(doc, viewFamilyTypeId, levelId)`, `ViewSection.Create
 | `doc.Create.NewDimension(View, Line, ReferenceArray [, DimensionType])` | Returns `Dimension` |
 | `doc.Create.NewReferencePlane(XYZ bubbleEnd, XYZ freeEnd, XYZ cutVec, View)` | Returns `ReferencePlane`. Use this factory method (the repo does); don't assume a static `ReferencePlane.Create` **(verify)** |
 | `ReferencePlane.GetReference()` | `Reference` for dimensions |
-| `FilledRegion.Create(doc, typeId, viewId, IList<CurveLoop>)` | Filled region |
+| `FilledRegion.Create(doc, typeId, viewId, IList<CurveLoop>)` | Filled region. Used in legend views by the library legends **(verify in legends)**. Build the loop with `CurveLoop.Append(Line.CreateBound(a, b))`, pass `List[DB.CurveLoop]` |
+| `FilledRegionType` | `FilteredElementCollector(doc).OfClass(FilledRegionType)`. `Name`, `ForegroundPatternId`, `ForegroundPatternColor`, `BackgroundPatternId`, `BackgroundPatternColor` (2019+) |
 | `IndependentTag.Create(doc, typeId, viewId, Reference, addLeader, TagOrientation, XYZ)` | 2019+ overload |
 
 ## 11. Copy, move, delete

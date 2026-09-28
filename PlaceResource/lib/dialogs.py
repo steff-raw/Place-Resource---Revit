@@ -141,6 +141,89 @@ def choose_from_list(title, labels, prompt=None, button_text="Select"):
         form.Dispose()
 
 
+def choose_many_from_list(title, labels, preselected=None, prompt=None, button_text="OK"):
+    """Tick several entries in a checklist. Returns the ticked indexes in list order, or None when cancelled.
+
+    ``preselected`` is an iterable of indexes that start ticked. Like ``choose_from_list``,
+    no Python event handlers are attached.
+    """
+    labels = [str(label) for label in labels]
+    if not labels:
+        return None
+    import clr
+    clr.AddReference("System.Windows.Forms")
+    clr.AddReference("System.Drawing")
+    from System.Drawing import Size
+    from System.Windows.Forms import (
+        Button,
+        CheckedListBox,
+        DialogResult,
+        DockStyle,
+        FlowDirection,
+        FlowLayoutPanel,
+        Form,
+        FormStartPosition,
+        Label,
+    )
+
+    form = Form()
+    form.Text = title
+    form.Size = Size(640, 520)
+    form.MinimumSize = Size(360, 260)
+    form.StartPosition = FormStartPosition.CenterScreen
+    form.TopMost = True
+    form.ShowInTaskbar = False
+
+    header = Label()
+    header.Text = prompt or "Tick the items to include, then press {0}.".format(button_text)
+    header.Dock = DockStyle.Top
+    header.Height = 24
+
+    box = CheckedListBox()
+    box.Dock = DockStyle.Fill
+    box.IntegralHeight = False
+    box.CheckOnClick = True
+    for label in labels:
+        box.Items.Add(label)
+    for index in checked_indexes(preselected, len(labels)):
+        box.SetItemChecked(index, True)
+
+    buttons = FlowLayoutPanel()
+    buttons.Dock = DockStyle.Bottom
+    buttons.FlowDirection = FlowDirection.RightToLeft
+    buttons.Height = 40
+
+    cancel = Button()
+    cancel.Text = "Cancel"
+    cancel.DialogResult = DialogResult.Cancel
+    accept = Button()
+    accept.Text = button_text
+    accept.DialogResult = DialogResult.OK
+    buttons.Controls.Add(cancel)
+    buttons.Controls.Add(accept)
+    form.AcceptButton = accept
+    form.CancelButton = cancel
+
+    form.Controls.Add(buttons)
+    form.Controls.Add(header)
+    form.Controls.Add(box)
+    box.BringToFront()
+    form.ActiveControl = box
+
+    try:
+        result = form.ShowDialog()
+        if result != DialogResult.OK:
+            return None
+        return sorted(int(index) for index in box.CheckedIndices)
+    finally:
+        form.Dispose()
+
+
+def checked_indexes(preselected, count):
+    """Return valid, unique, sorted indexes from ``preselected``."""
+    return sorted(set(int(index) for index in (preselected or []) if 0 <= int(index) < count))
+
+
 def pick_file(title, filter_text="JSON files (*.json)|*.json|All files (*.*)|*.*", initial_dir=None):
     """Return the chosen file path, or None when cancelled."""
     import clr

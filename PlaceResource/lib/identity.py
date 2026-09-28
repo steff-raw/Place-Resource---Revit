@@ -167,8 +167,16 @@ def find_legend(doc, source_view, definition_id):
     return _find_legend_in_json(doc, source_unique, source_id, definition_id)
 
 
-def iter_generated_legends(doc):
-    """Yield (view, payload) for every tool-managed legend in the document."""
+ROLE_VIEW_LEGEND = "generated_legend"
+ROLE_LIBRARY_LEGEND = "library_legend"
+
+
+def iter_generated_legends(doc, role=ROLE_VIEW_LEGEND):
+    """Yield (view, payload) for tool-managed legends of one role.
+
+    ``generated_legend`` is the view/sheet type legend. ``library_legend`` is built
+    from the Excel library. Pass role=None for both.
+    """
     from version_adapter import get_db
     DB = get_db()
     collector = DB.FilteredElementCollector(doc).OfClass(DB.View)
@@ -179,8 +187,53 @@ def iter_generated_legends(doc):
         except Exception:
             continue
         payload = read_view_payload(view)
-        if payload:
-            yield view, payload
+        if not payload:
+            continue
+        if role is not None and payload.get("role", ROLE_VIEW_LEGEND) != role:
+            continue
+        yield view, payload
+
+
+def find_library_legend(doc, category, sheet=None):
+    """Find the library legend for a category: the master (sheet None) or the one for ``sheet``."""
+    sheet_unique = sheet.UniqueId if sheet is not None else None
+    for view, payload in iter_generated_legends(doc, ROLE_LIBRARY_LEGEND):
+        if payload.get("category") != category:
+            continue
+        if payload.get("sheet_unique_id") == sheet_unique:
+            return view
+    return None
+
+
+def build_library_view_payload(category, codes, sheet, content_hash_value):
+    """Identity stored on a library legend view."""
+    from version_adapter import element_id_value
+    return {
+        "tool": TOOL_ID,
+        "role": ROLE_LIBRARY_LEGEND,
+        "managed": True,
+        "category": category,
+        "codes": list(codes),
+        "sheet_id": element_id_value(sheet.Id) if sheet is not None else None,
+        "sheet_unique_id": sheet.UniqueId if sheet is not None else None,
+        "legend_definition_id": "library:{0}".format(category),
+        "updated_utc": utc_now(),
+        "tool_version": TOOL_VERSION,
+        "content_hash": content_hash_value,
+        "storage": "extensible_storage",
+    }
+
+
+def build_library_element_payload(category, code, role):
+    """Identity stored on each element of a library legend."""
+    return {
+        "tool": TOOL_ID,
+        "managed": True,
+        "role": role,
+        "legend_definition_id": "library:{0}".format(category),
+        "code": code,
+        "tool_version": TOOL_VERSION,
+    }
 
 
 def collect_managed_elements(doc, legend_view):

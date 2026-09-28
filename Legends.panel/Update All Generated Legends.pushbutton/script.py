@@ -48,52 +48,64 @@ from pyrevit import revit
 from configuration import load_settings
 from dialogs import ask_yes_no
 from errors import LegendToolError
-from identity import iter_generated_legends
+from identity import ROLE_LIBRARY_LEGEND, iter_generated_legends
+from legend_library import load_library_settings
 from legend_service import update_all
+from library_legend_service import update_all_library
 from logging_service import get_logger
-from reporting import alert_error, print_batch
+from reporting import alert_error, print_batch, print_library_batch
 from validation import assert_project_document
 
 LOGGER = get_logger("update_all_generated_legends")
 
 
 def main():
-    """Refresh managed legends and skip deleted source views."""
+    """Refresh view/sheet type legends and library legends. Deleted sources are reported and skipped."""
     doc = revit.doc
     assert_project_document(doc)
     settings = load_settings()
     legends = list(iter_generated_legends(doc))
-    if not legends:
+    library_legends = list(iter_generated_legends(doc, ROLE_LIBRARY_LEGEND))
+    if not legends and not library_legends:
         raise LegendToolError("This model has no tool-managed legends to update.")
     accepted = ask_yes_no(
         "Update All Generated Legends",
-        "Update {0} generated legend(s)?".format(len(legends)),
-        content="Legends whose content hash is unchanged are skipped. Viewport positions are preserved. "
-                "Source views that were deleted are reported and skipped.",
+        "Update {0} type legend(s) and {1} library legend(s)?".format(len(legends), len(library_legends)),
+        content="Legends whose content is unchanged are skipped. Viewport positions are preserved. "
+                "Deleted source views and sheets are reported and skipped. Library legends are rebuilt "
+                "from their stored rows and the current Excel library.",
         yes_label="Update the legends",
         no_label="Cancel",
     )
     if not accepted:
         return
-    allow_delete = True
-    if _any_definition_confirms(settings):
-        allow_delete = ask_yes_no(
-            "Remove obsolete legend entries",
-            "Remove managed entries for types that are no longer visible?",
-            content="Manual notes and unmanaged annotation are not deleted.",
-            yes_label="Remove them",
-            no_label="Keep them",
-        )
-    summary = update_all(doc, settings, {
-        "allow_delete": allow_delete,
-        "skip_if_unchanged": True,
-    })
-    print_batch(summary)
-    if summary.get("failed"):
+    failed = 0
+    if legends:
+        allow_delete = True
+        if _any_definition_confirms(settings):
+            allow_delete = ask_yes_no(
+                "Remove obsolete legend entries",
+                "Remove managed entries for types that are no longer visible?",
+                content="Manual notes and unmanaged annotation are not deleted.",
+                yes_label="Remove them",
+                no_label="Keep them",
+            )
+        summary = update_all(doc, settings, {
+            "allow_delete": allow_delete,
+            "skip_if_unchanged": True,
+        })
+        print_batch(summary)
+        failed += len(summary.get("failed") or [])
+    if library_legends:
+        library_settings = load_library_settings()
+        library_summary = update_all_library(doc, library_settings)
+        print_library_batch(library_summary)
+        failed += len(library_summary.get("failed") or [])
+    if failed:
         alert_error(
             "Update All Generated Legends",
             "{0} legend(s) failed. The output window lists the errors. "
-            "Successful legends were kept.".format(len(summary["failed"])),
+            "Successful legends were kept.".format(failed),
         )
 
 
