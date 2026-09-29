@@ -2,7 +2,10 @@
   "schema_version": "2.0",
   "defaults": {
     "family_name": "PR Legend - {category}",
-    "description_parameter": "Description",
+    "description_parameter": "Legend_Description",
+    "type_mark_visibility_parameter": "Legend_TypeMark_Visibility",
+    "text_visibility_parameter": "Text_Visibility",
+    "show_type_mark": true,
     "template_legend_name": "_TEMPLATE - LIBRARY LEGEND",
     "output_name_pattern": "{category} LEGEND",
     "sheet_output_name_pattern": "{category} LEGEND - {sheet_number}",

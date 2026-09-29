@@ -18,7 +18,10 @@ SUPPORTED_SCHEMA = "2.0"
 
 DEFAULTS = {
     "family_name": "PR Legend - {category}",
-    "description_parameter": "Description",
+    "description_parameter": "Legend_Description",
+    "type_mark_visibility_parameter": "Legend_TypeMark_Visibility",
+    "text_visibility_parameter": "Text_Visibility",
+    "show_type_mark": True,
     "template_legend_name": "_TEMPLATE - LIBRARY LEGEND",
     "output_name_pattern": "{category} LEGEND",
     "sheet_output_name_pattern": "{category} LEGEND - {sheet_number}",
@@ -245,10 +248,13 @@ def _merge(base, override):
 
 
 def _validate_category(config, prefix):
-    for key in ("family_name", "description_parameter", "template_legend_name",
+    for key in ("family_name", "description_parameter", "type_mark_visibility_parameter",
+                "text_visibility_parameter", "template_legend_name",
                 "output_name_pattern", "sheet_output_name_pattern"):
         if not isinstance(config.get(key), str) or not config[key].strip():
             raise ConfigurationError("{0}: {1} must be a non-empty string.".format(prefix, key))
+    if not isinstance(config.get("show_type_mark"), bool):
+        raise ConfigurationError("{0}: show_type_mark must be true or false.".format(prefix))
     scale = config.get("scale")
     if isinstance(scale, bool) or not isinstance(scale, int) or scale <= 0:
         raise ConfigurationError("{0}: scale must be a positive whole number such as 100.".format(prefix))

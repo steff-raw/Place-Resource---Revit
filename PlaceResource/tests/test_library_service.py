@@ -144,8 +144,8 @@ def _model(family_category=GENERIC_ANNOTATION):
     return _Doc([
         _Element(1, "family", name="PR Legend - Walls", symbol_ids=(10, 11, 12),
                  family_category=_Category(family_category, "Generic Annotations")),
-        _Element(10, "symbol", name="IWS-110", params={"Description": "Blockwork"}),
-        _Element(11, "symbol", name="IWS-105", params={"Description": "Metal stud"}),
+        _Element(10, "symbol", name="IWS-110", params={"Legend_Description": "Blockwork"}),
+        _Element(11, "symbol", name="IWS-105", params={"Legend_Description": "Metal stud"}),
         _Element(12, "symbol", name="IWS-9"),
         _Element(20, "type", name="Stud 105", category="OST_Walls", mark="IWS-105"),
         _Element(21, "type", name="Block 110", category="OST_Walls", mark="IWS-110"),
@@ -186,7 +186,7 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(len(categories), 12)
         self.assertEqual(categories["Walls"]["family_name"], "PR Legend - Walls")
         self.assertEqual(categories["Fire Strategy"]["family_name"], "PR Legend - Fire Strategy")
-        self.assertEqual(categories["Walls"]["description_parameter"], "Description")
+        self.assertEqual(categories["Walls"]["description_parameter"], "Legend_Description")
 
     def test_old_excel_schema_is_rejected_with_a_hint(self):
         with self.assertRaises(ConfigurationError) as caught:
@@ -204,6 +204,8 @@ class SettingsTests(unittest.TestCase):
         bad = copy.deepcopy(base); bad["defaults"]["layout"]["row_gap_mm"] = -1; cases.append(bad)
         bad = copy.deepcopy(base); bad["defaults"]["family_name"] = ""; cases.append(bad)
         bad = copy.deepcopy(base); bad["defaults"]["styles"]["text_type"] = ""; cases.append(bad)
+        bad = copy.deepcopy(base); bad["defaults"]["show_type_mark"] = "yes"; cases.append(bad)
+        bad = copy.deepcopy(base); bad["defaults"]["text_visibility_parameter"] = ""; cases.append(bad)
         bad = copy.deepcopy(base); bad["defaults"]["layout"]["width_mm"] = 5; cases.append(bad)
         bad = copy.deepcopy(base); bad["defaults"]["layout"]["text_pattern"] = None; cases.append(bad)
         for data in cases:
@@ -303,6 +305,8 @@ class PrepareTests(unittest.TestCase):
         self.assertNotEqual(first, S.library_hash("Walls", config, [L.LibraryEntry("A", "new text", symbol_unique_id="x")]))
         self.assertNotEqual(first, S.library_hash("Walls", config, entries, width_mm=90))
         self.assertEqual(first, S.library_hash("Walls", config, entries, width_mm=config["layout"]["width_mm"]))
+        self.assertEqual(first, S.library_hash("Walls", config, entries, show_type_mark=True))
+        self.assertNotEqual(first, S.library_hash("Walls", config, entries, show_type_mark=False))
         config["layout"]["row_gap_mm"] = 9
         self.assertNotEqual(first, S.library_hash("Walls", config, entries))
 
@@ -351,6 +355,64 @@ class TextLayoutTests(unittest.TestCase):
         config = _config()
         self.assertEqual(S.legend_width_mm(config), 120.0)
         self.assertEqual(S.legend_width_mm(config, 85), 85.0)
+
+
+class _YesNo(object):
+    def __init__(self, read_only=False):
+        self.IsReadOnly = read_only
+        self.value = None
+
+    def Set(self, value):
+        self.value = value
+
+
+class _Symbol(object):
+    def __init__(self, **params):
+        self.params = params
+
+    def LookupParameter(self, name):
+        return self.params.get(name)
+
+
+class ToggleTests(unittest.TestCase):
+    def test_family_parameter_defaults(self):
+        config = _config()
+        self.assertEqual(config["description_parameter"], "Legend_Description")
+        self.assertEqual(config["type_mark_visibility_parameter"], "Legend_TypeMark_Visibility")
+        self.assertEqual(config["text_visibility_parameter"], "Text_Visibility")
+        self.assertTrue(config["show_type_mark"])
+
+    def test_type_mark_as_chosen_and_family_text_always_off(self):
+        config = _config()
+        for show, expected in ((True, 1), (False, 0)):
+            mark, text = _YesNo(), _YesNo()
+            report = {"warnings": []}
+            S._set_toggles([_Symbol(Legend_TypeMark_Visibility=mark, Text_Visibility=text)], config, show, report)
+            self.assertEqual((mark.value, text.value), (expected, 0))
+            self.assertEqual(report["warnings"], [])
+
+    def test_missing_parameter_warns_once(self):
+        report = {"warnings": []}
+        symbols = [_Symbol(Text_Visibility=_YesNo()), _Symbol(Text_Visibility=_YesNo())]
+        S._set_toggles(symbols, _config(), True, report)
+        self.assertEqual(len(report["warnings"]), 1)
+        self.assertIn("Legend_TypeMark_Visibility", report["warnings"][0])
+
+    def test_last_answer_is_listed_first(self):
+        config = _config()
+        seen = []
+
+        def _choose(title, instruction, options, **_kw):
+            seen.append([key for key, *_rest in options])
+            return "hide"
+
+        with mock.patch.object(dialogs, "choose_command", side_effect=_choose):
+            self.assertFalse(library_ui.ask_type_mark(config, None))
+            config["show_type_mark"] = False
+            library_ui.ask_type_mark(config, None)
+        self.assertEqual(seen, [["show", "hide"], ["hide", "show"]])
+        with mock.patch.object(dialogs, "choose_command", return_value=None):
+            self.assertIsNone(library_ui.ask_type_mark(config, None))
 
 
 class MatchingTests(unittest.TestCase):

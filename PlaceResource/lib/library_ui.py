@@ -123,11 +123,14 @@ def run_setup(doc, library_settings):
     )
     if not chosen:
         return None
-    if not _confirm(category, config, chosen, existing):
+    show_type_mark = ask_type_mark(config, existing)
+    if show_type_mark is None:
+        return None
+    if not _confirm(category, config, chosen, existing, show_type_mark):
         return None
     if not _ensure_text(doc, config):
         return None
-    report = build_library_legend(doc, config, chosen, sheet=None, legend_view=existing)
+    report = build_library_legend(doc, config, chosen, sheet=None, legend_view=existing, show_type_mark=show_type_mark)
     print_library_report(report)
     if report["status"] == "failed":
         alert_error("Legend Setup", "\n".join(report["errors"]))
@@ -165,9 +168,13 @@ def run_sheet_legend(doc, uidoc, sheet, category, library_settings):
     if size is None:
         return None
     width_mm, corner = size
+    show_type_mark = ask_type_mark(config, existing)
+    if show_type_mark is None:
+        return None
     if not _ensure_text(doc, config):
         return None
-    report = build_library_legend(doc, config, chosen, sheet=sheet, legend_view=existing, width_mm=width_mm)
+    report = build_library_legend(doc, config, chosen, sheet=sheet, legend_view=existing,
+                                  width_mm=width_mm, show_type_mark=show_type_mark)
     if report["status"] in ("created", "updated"):
         legend_view = doc.GetElement(existing.Id) if existing is not None else _view_by_id(doc, report["legend_view_id"])
         try:
@@ -230,6 +237,25 @@ def choose_width(uidoc, sheet, config, existing):
         default = text
 
 
+def ask_type_mark(config, existing):
+    """Ask whether the Type Mark shows above each symbol. Returns True/False, or None when cancelled.
+
+    The last choice for this legend (or the settings default) is listed first.
+    """
+    stored = (read_view_payload(existing) or {}).get("show_type_mark") if existing is not None else None
+    current = bool(config.get("show_type_mark", True)) if stored is None else bool(stored)
+    show = ("show", "Show the Type Mark", "Turns on '{0}' on each symbol.".format(config["type_mark_visibility_parameter"]))
+    hide = ("hide", "Hide the Type Mark", None)
+    choice = dialogs.choose_command(
+        "{0} legend".format(config["name"]),
+        "Show the Type Mark above each symbol?",
+        [show, hide] if current else [hide, show],
+    )
+    if choice is None:
+        return None
+    return choice == "show"
+
+
 def _put_on_sheet(doc, uidoc, sheet, legend_view, config, corner, report):
     """Place the legend, or line up the one already on the sheet with a drawn box."""
     from placement_service import (
@@ -274,13 +300,14 @@ def _ensure_text(doc, config):
     return ensure_text_style(doc, names)
 
 
-def _confirm(category, config, chosen, existing):
+def _confirm(category, config, chosen, existing, show_type_mark):
     content = "\n".join([
         "Rows: {0} types of family '{1}'".format(len(chosen), config["family_name"]),
         "Existing legend: {0}".format(existing.Name if existing is not None else "None, a new one will be made"),
         "Template legend: {0}".format(config["template_legend_name"]),
         "Scale: 1:{0}".format(config["scale"]),
         "Width: {0:g} cm".format(round(_stored_width(existing, config) / 10.0, 1)),
+        "Type Mark above symbols: {0}".format("Yes" if show_type_mark else "No"),
     ])
     choice = dialogs.choose_command(
         "Legend Setup",

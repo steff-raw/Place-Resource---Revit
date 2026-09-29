@@ -82,15 +82,22 @@ Open **Place Resources > Settings > Choose legend text style** and pick any text
 The library lives in Revit as **one symbol family per category**:
 
 - **One family type per Type Mark.** The type name is the Type Mark, e.g. `IWS-105`.
-- **The family draws the graphic only** (hatch swatch, symbol). No label in the family.
-- **The tool writes the text:** it reads the `Description` type parameter and places it as a text note to the right of the graphic, wrapped to the legend width, in your legend text style.
+- **The family draws the graphic** and the Type Mark label above it.
+- **The tool writes the description:** it reads `Legend_Description` and places it as a text note to the right of the graphic, wrapped to the legend width, in your legend text style.
 - **Changes:** graphic edits show up as soon as the family is reloaded. Description edits need **Update All**.
 
 ### Make the legend family (by hand, once per category)
 
 1. **New family:** Generic Annotation or Detail Item. Any name. You pick it per category in Legend Setup.
 2. **One type per code:** the type name must be the Type Mark exactly, e.g. `IWS-105`. This is how the tool finds the type for a Type Mark.
-3. **`Description`:** add a type text parameter called `Description` and fill it per type. No label needed. Use `description_parameter` for a different name.
+3. **Parameters** (names can be changed in `library_legends.json`):
+
+   | Parameter | Kind | What the tool does |
+   |---|---|---|
+   | `Legend_Description` | type, text | Reads it and writes it as wrapped text |
+   | `Legend_TypeMark` | label above the graphic | Nothing (the family fills it) |
+   | `Legend_TypeMark_Visibility` | instance, Yes/No | Set from your answer each time you place or set up a legend |
+   | `Text_Visibility` | instance, Yes/No | Always set to No (the tool writes the text instead) |
 4. **Graphic:** draw the hatch or graphic per type any way you like, e.g. filled regions switched on and off by Yes/No type parameters.
 5. **Load** the family into the project or template.
 
@@ -110,6 +117,7 @@ On a sheet, first choose which legends the sheet shows. For each library categor
   - **Draw a box on the sheet:** the box width sets the legend width, and the legend's top-left goes to the box's top-left corner.
   - **Type the width in cm** (2 to 100), then pick a point.
   - **Keep the current width** (existing legends).
+- **Type Mark:** then choose to show or hide the Type Mark above each symbol (asked every time; your last answer is listed first; Update All keeps it).
 - **Text wrapping:** text width = legend width - widest graphic - `text_gap_mm`. Each row is as tall as its graphic or its text, whichever is taller.
 - **Result:** the sheet legend `<Category> LEGEND - <sheet number>` is created or updated and placed on the sheet. The width is stored on the legend and reused by Update All. An existing one keeps its position unless you drew a box.
 
@@ -125,7 +133,8 @@ Library legends made by earlier versions (Excel or master legends) are rebuilt w
 
 Per category, with shared `defaults`:
 
-- `family_name` (default `PR Legend - {category}`, used until a family is picked in Legend Setup) and `description_parameter`
+- `family_name` (default `PR Legend - {category}`, used until a family is picked in Legend Setup)
+- `description_parameter`, `type_mark_visibility_parameter`, `text_visibility_parameter`, `show_type_mark` (default answer)
 - `revit_category` (for Type Mark matching; `null` for zone categories) and `source_view_types`
 - `template_legend_name`, the name patterns and `scale`
 - `styles.heading_text_type` / `show_heading`, `styles.text_type` / `show_text`
@@ -354,13 +363,14 @@ Run these on a copy of a project. Record the Revit and pyRevit versions in the t
 Text style and library families:
 
 - [ ] Settings > Choose legend text style, then Create/Update View Legend works in a project without `2.5mm Arial`.
-- [ ] Load `PR Legend - Walls` (types IWS-105, IWS-110). Legend Setup lists them with their Description.
+- [ ] Load `PR Legend - Walls` (types IWS-105, IWS-110). Legend Setup lists them with their Legend_Description.
 - [ ] Edit the family (hatch or description) and reload it: existing legends show the change without running the tool.
 - [ ] A family that is not a Generic Annotation (or Detail Item) family is refused with a clear message.
 - [ ] Legend Setup, Walls: one symbol per ticked type, stacked under the heading, description to the right.
 - [ ] Place Legend on Sheet, draw a 12 cm box: text wraps inside 12 cm, legend top-left at the box corner.
 - [ ] Place Legend on Sheet, type 8 cm: longer descriptions wrap to more lines, rows do not overlap.
-- [ ] Edit a Description in the family, reload, Update All: the legend text changes.
+- [ ] Place with "Show the Type Mark", then again with "Hide": the label shows, then hides. The family's description label never shows.
+- [ ] Edit Legend_Description in the family, reload, Update All: the legend text changes.
 - [ ] Place Legend on a sheet with a plan and a section: wall Type Marks from both views are ticked.
 - [ ] Move the legend on the sheet and update: the position is kept, and a manual note in the legend survives.
 - [ ] Delete a family type, run Update All / Audit: the missing type is reported.

@@ -57,7 +57,12 @@ def legend_width_mm(config, width_mm=None):
     return float(width_mm) if width_mm else float(config["layout"]["width_mm"])
 
 
-def library_hash(category, config, entries, width_mm=None):
+def type_mark_choice(config, show_type_mark=None):
+    """The Type Mark toggle to build with: the one given, else the default from the settings."""
+    return bool(config.get("show_type_mark", True)) if show_type_mark is None else bool(show_type_mark)
+
+
+def library_hash(category, config, entries, width_mm=None, show_type_mark=None):
     """Hash of what a library legend shows, used to skip unchanged legends."""
     records = [{"type_id": index, "display": {"row": entry.as_hash_record()}} for index, entry in enumerate(entries)]
     return content_hash(
@@ -65,7 +70,8 @@ def library_hash(category, config, entries, width_mm=None):
         "2.1",
         records,
         {"family": config["family_name"], "layout": config["layout"], "styles": config["styles"],
-         "width_mm": legend_width_mm(config, width_mm)},
+         "width_mm": legend_width_mm(config, width_mm),
+         "show_type_mark": type_mark_choice(config, show_type_mark)},
     )
 
 
@@ -100,12 +106,13 @@ def prepare(doc, config, entries, need_template):
     return resolved
 
 
-def build_library_legend(doc, config, entries, sheet=None, legend_view=None, width_mm=None):
+def build_library_legend(doc, config, entries, sheet=None, legend_view=None, width_mm=None, show_type_mark=None):
     """Create or update a library legend. Returns a report dictionary.
 
     ``sheet`` None builds the category legend that is not tied to a sheet.
     ``width_mm`` is the legend width on paper. None uses the width stored on the
-    legend, then layout.width_mm from the settings.
+    legend, then layout.width_mm from the settings. ``show_type_mark`` works the
+    same way with show_type_mark.
     """
     category = config["name"]
     existing = legend_view or find_library_legend(doc, category, sheet)
@@ -117,6 +124,7 @@ def build_library_legend(doc, config, entries, sheet=None, legend_view=None, wid
         "legend_view_name": existing.Name if existing is not None else None,
         "codes": [entry.code for entry in entries],
         "width_mm": None,
+        "show_type_mark": None,
         "warnings": [],
         "errors": [],
         "notices": [],
@@ -125,17 +133,22 @@ def build_library_legend(doc, config, entries, sheet=None, legend_view=None, wid
         report["status"] = "skipped"
         report["warnings"].append("No rows were ticked, so the legend was not changed.")
         return report
-    if not width_mm and existing is not None:
-        width_mm = (read_view_payload(existing) or {}).get("width_mm")
+    stored = (read_view_payload(existing) or {}) if existing is not None else {}
+    if not width_mm:
+        width_mm = stored.get("width_mm")
     width_mm = legend_width_mm(config, width_mm)
+    if show_type_mark is None:
+        show_type_mark = stored.get("show_type_mark")
+    show_type_mark = type_mark_choice(config, show_type_mark)
     report["width_mm"] = width_mm
+    report["show_type_mark"] = show_type_mark
     resolved = prepare(doc, config, entries, need_template=existing is None)
     if resolved["problems"]:
         report["errors"].extend(resolved["problems"])
         report["errors"].append("Nothing was changed in the model.")
         return report
     try:
-        view = _run(doc, config, entries, sheet, existing, resolved, report, width_mm)
+        view = _run(doc, config, entries, sheet, existing, resolved, report, width_mm, show_type_mark)
     except LegendToolError as ex:
         report["errors"].append(str(ex))
         report["errors"].append("The change was undone. The model is as it was before.")
@@ -188,10 +201,13 @@ def update_all_library(doc, library_settings):
             ))
         entries = entries_for_codes(library, codes)
         width_mm = payload.get("width_mm")
-        if payload.get("source") == SOURCE_FAMILY and payload.get("content_hash") == library_hash(category, config, entries, width_mm):
+        show_type_mark = payload.get("show_type_mark")
+        if payload.get("source") == SOURCE_FAMILY and payload.get("content_hash") == library_hash(
+                category, config, entries, width_mm, show_type_mark):
             summary["unchanged"].append({"legend": view.Name})
             continue
-        report = build_library_legend(doc, config, entries, sheet=sheet, legend_view=view, width_mm=width_mm)
+        report = build_library_legend(doc, config, entries, sheet=sheet, legend_view=view,
+                                      width_mm=width_mm, show_type_mark=show_type_mark)
         target = summary["failed"] if report["status"] == "failed" else summary["updated"]
         target.append({"legend": view.Name, "status": report["status"], "errors": report["errors"]})
         summary["warnings"].extend(report["warnings"])
@@ -224,7 +240,8 @@ def audit_library(doc, library_settings):
             "unlisted_marks": [],
             "outdated": config is not None and not problems and (
                 payload.get("source") != SOURCE_FAMILY
-                or payload.get("content_hash") != library_hash(category, config, entries, payload.get("width_mm"))
+                or payload.get("content_hash") != library_hash(
+                    category, config, entries, payload.get("width_mm"), payload.get("show_type_mark"))
             ),
             "updated_utc": payload.get("updated_utc"),
         }
@@ -241,7 +258,7 @@ def audit_library(doc, library_settings):
     return rows
 
 
-def _run(doc, config, entries, sheet, existing, resolved, report, width_mm):
+def _run(doc, config, entries, sheet, existing, resolved, report, width_mm, show_type_mark):
     from legend_service import _capture_viewports, _restore_viewports
     DB = get_db()
     category = config["name"]
@@ -258,9 +275,10 @@ def _run(doc, config, entries, sheet, existing, resolved, report, width_mm):
                           if payload.get("role") in LIBRARY_ROLES]
                 if doomed:
                     delete_managed_elements(doc, doomed)
-            payload = build_library_view_payload(category, codes, sheet, library_hash(category, config, entries, width_mm))
+            payload = build_library_view_payload(category, codes, sheet, library_hash(category, config, entries, width_mm, show_type_mark))
             payload["source"] = SOURCE_FAMILY
             payload["width_mm"] = width_mm
+            payload["show_type_mark"] = show_type_mark
             payload["family_name"] = config["family_name"]
             if write_view_identity(view, payload, doc) == "json_registry":
                 report["warnings"].append(
@@ -282,6 +300,7 @@ def _run(doc, config, entries, sheet, existing, resolved, report, width_mm):
                 instance = _place_symbol(doc, view, symbol, origin, entry.code)
                 write_element_identity(instance, build_library_element_payload(category, entry.code, "library_row"))
                 placed.append((entry, instance))
+            _set_toggles([instance for _entry, instance in placed], config, show_type_mark, report)
             doc.Regenerate()
         report["warnings"].extend(transaction.warnings)
 
@@ -314,6 +333,39 @@ def _place_symbol(doc, view, symbol, origin, code):
         raise LegendOperationError(
             "Revit could not place '{0}' in legend '{1}'. The family must be a Generic Annotation. {2}".format(
                 code, view.Name, ex
+            )
+        )
+
+
+def _set_toggles(instances, config, show_type_mark, report):
+    """Set the family's Yes/No instance parameters: Type Mark label as chosen, description label always off.
+
+    The tool writes the description itself, so the family label stays hidden.
+    A missing or read-only parameter gives one warning, not an error.
+    """
+    wanted = (
+        (config["type_mark_visibility_parameter"], 1 if show_type_mark else 0),
+        (config["text_visibility_parameter"], 0),
+    )
+    problems = set()
+    for instance in instances:
+        for name, value in wanted:
+            parameter = None
+            try:
+                parameter = instance.LookupParameter(name)
+            except Exception:
+                pass
+            if parameter is None or getattr(parameter, "IsReadOnly", False):
+                problems.add(name)
+                continue
+            try:
+                parameter.Set(value)
+            except Exception:
+                problems.add(name)
+    for name in sorted(problems):
+        report["warnings"].append(
+            "Could not set '{0}' on the symbols. Check it is a Yes/No instance parameter in family '{1}'.".format(
+                name, config["family_name"]
             )
         )
 
