@@ -18,7 +18,7 @@ from units import format_millimetres
 class ParameterResolutionTests(unittest.TestCase):
     def setUp(self):
         self.aliases = load_settings(CONFIG)["aliases"]
-        self.resolver = ParameterResolver(self.aliases, {"blank_label": "–", "unmapped_parameter": "warn_and_blank"})
+        self.resolver = ParameterResolver(self.aliases, {"blank_label": "-", "unmapped_parameter": "warn_and_blank"})
 
     def test_builtin_wins_over_guid_and_name(self):
         reader = LookupReader(
@@ -67,7 +67,7 @@ class ParameterResolutionTests(unittest.TestCase):
         resolved = self.resolver.resolve("Fire Rating", reader, required=False)
         self.assertTrue(resolved.missing)
         self.assertIsNone(resolved.warning)
-        self.assertEqual(resolved.display_value, "–")
+        self.assertEqual(resolved.display_value, "-")
 
     def test_unmapped_parameter_warns(self):
         reader = LookupReader()

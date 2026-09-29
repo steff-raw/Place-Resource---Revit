@@ -3,9 +3,10 @@
 
 One DataStorage element carries an Extensible Storage entity with a JSON payload:
 
-    {"text_type": "<TextNoteType name>"}
+    {"text_type": "<TextNoteType name>", "families": {"<category>": "<family name>"}}
 
-The setting travels with the model, so every project keeps its own text style.
+The settings travel with the model, so every project keeps its own text style
+and its own symbol family per legend category.
 Do not change the schema GUID. Keys from older versions (e.g. "masters") are ignored.
 """
 
@@ -13,17 +14,22 @@ import json
 
 SETTINGS_SCHEMA_GUID = "5b7e2d94-3a1c-4f08-9e6b-2c4d8a1f7e35"
 SETTINGS_SCHEMA_NAME = "PRLegendProjectSettings"
-_EMPTY = {"text_type": None}
+_EMPTY = {"text_type": None, "families": {}}
 
 
 def normalize(data):
     """Return a clean settings dict whatever was stored."""
-    result = {"text_type": None}
+    result = {"text_type": None, "families": {}}
     if not isinstance(data, dict):
         return result
     text_type = data.get("text_type")
     if isinstance(text_type, str) and text_type.strip():
         result["text_type"] = text_type.strip()
+    families = data.get("families")
+    if isinstance(families, dict):
+        for category, family in families.items():
+            if isinstance(category, str) and isinstance(family, str) and family.strip():
+                result["families"][category] = family.strip()
     return result
 
 
@@ -53,6 +59,18 @@ def save(doc, data, name="Place Resource: legend settings"):
 def text_type_name(doc):
     """The text note type chosen for this project, or None."""
     return read(doc)["text_type"]
+
+
+def family_assignments(doc):
+    """Category name to symbol family name, as picked in Legend Setup."""
+    return read(doc)["families"]
+
+
+def assign_family(doc, category, family_name):
+    """Save the symbol family for one category (opens its own transaction)."""
+    data = read(doc)
+    data["families"][category] = family_name
+    save(doc, data, "Place Resource: legend family")
 
 
 def describe(data):

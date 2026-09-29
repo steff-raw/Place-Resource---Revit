@@ -9,9 +9,9 @@ def assert_project_document(doc):
     if doc is None:
         raise ValidationError("There is no active document.")
     if getattr(doc, "IsFamilyDocument", False):
-        raise ValidationError("Open a project document. Legend creation does not run in the family editor.")
+        raise ValidationError("Open a project. Legends can't be made in the family editor.")
     if getattr(doc, "IsReadOnly", False):
-        raise ValidationError("The document is read-only. Open a writable model before creating a legend.")
+        raise ValidationError("The model is read-only.")
 
 
 def view_type_token(view):
@@ -28,7 +28,7 @@ def assert_supported_source_view(view, definition):
         raise ValidationError("There is no active view. Open a plan, section, or elevation.")
     try:
         if view.IsTemplate:
-            raise ValidationError("The active view is a view template. Open the model view itself.")
+            raise ValidationError("The active view is a view template. Open a plan, section or elevation.")
     except ValidationError:
         raise
     except Exception:
@@ -39,15 +39,14 @@ def assert_supported_source_view(view, definition):
         from collectors import sheet_source_views
         if not sheet_source_views(view.Document, view, allowed):
             raise ValidationError(
-                "Sheet '{0}' has no {1} view placed on it for '{2}'. Place a view on the sheet, "
-                "or open the model view itself.".format(
+                "Sheet '{0}' has no {1} view on it for '{2}'.".format(
                     _view_name(view), ", ".join(allowed), definition.get("display_name") or definition.get("id")
                 )
             )
         return token
     if token == "Legend":
         raise ValidationError(
-            "A legend cannot be the source view. Open the model view whose visible types should be listed."
+            "Open a plan, section or elevation, not a legend."
         )
     if token not in allowed:
         raise ValidationError(

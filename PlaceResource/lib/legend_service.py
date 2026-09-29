@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Create and update a legend from the types visible in a source view.
 
-Model elements are never modified. Only the generated legend, its tool-managed
+Model elements are never modified. Only the generated legend, its own
 annotation, and its sheet viewport position are written.
 """
 
@@ -96,8 +96,8 @@ def create_or_update(doc, source_view, definition, settings, options):
     if plan["existing"] is None and not plan["collection"].types and not definition["update"].get("create_when_empty"):
         report["status"] = "skipped"
         report["warnings"].append(
-            "No visible types were found, so a legend was not created. "
-            "Set update.create_when_empty to true if an empty legend is required."
+            "No types are visible in this view, so no legend was made. "
+            "Set update.create_when_empty to true if you want an empty legend."
         )
         return report
 
@@ -115,14 +115,14 @@ def create_or_update(doc, source_view, definition, settings, options):
         report["status"] = "unchanged"
         report["legend_view_id"] = element_id_value(plan["existing"].Id)
         report["legend_view_name"] = plan["existing_name"]
-        report["notices"].append("The stored content hash matches the view, so this legend was left unchanged.")
+        report["notices"].append("Nothing has changed since the last update, so the legend was left as it is.")
         return report
 
     allow_delete = bool(options.get("allow_delete")) and bool(definition["update"].get("remove_unused_entries"))
     if plan["to_remove"] and not allow_delete:
         report["warnings"].append(
-            "{0} type(s) are no longer visible and were kept because removal is turned off "
-            "or was declined.".format(len(plan["to_remove"]))
+            "{0} type(s) are no longer visible but were kept, because removal is off or you "
+            "chose to keep them.".format(len(plan["to_remove"]))
         )
 
     try:
@@ -152,13 +152,13 @@ def create_or_update(doc, source_view, definition, settings, options):
     except (LegendOperationError, UnsupportedRevitOperationError, LegendToolError) as ex:
         report["status"] = "failed"
         report["errors"].append(str(ex))
-        report["errors"].append("The legend change was rolled back. The model was not left partially updated.")
+        report["errors"].append("The change was undone. The model is as it was before.")
         return report
     except Exception as ex:
         LOGGER.exception("Legend update failed")
         report["status"] = "failed"
-        report["errors"].append("Unexpected failure: {0}".format(ex))
-        report["errors"].append("The legend change was rolled back.")
+        report["errors"].append("Something went wrong: {0}".format(ex))
+        report["errors"].append("The change was undone.")
         return report
     return report
 
@@ -186,7 +186,7 @@ def update_all(doc, settings, options):
         if definition is None:
             summary["failed"].append({
                 "legend": legend_name,
-                "error": "Legend definition '{0}' is no longer in the settings file.".format(
+                "error": "Legend type '{0}' is no longer in the settings file.".format(
                     payload.get("legend_definition_id")
                 ),
             })
@@ -197,10 +197,10 @@ def update_all(doc, settings, options):
         if source is None or not isinstance(source, DB.View):
             summary["skipped"].append({
                 "legend": legend_name,
-                "reason": "Source view {0} was deleted or is not a view.".format(payload.get("source_view_id")),
+                "reason": "Its view ({0}) was deleted.".format(payload.get("source_view_id")),
             })
             summary["warnings"].append(
-                "Skipped '{0}' because its source view no longer exists.".format(legend_name)
+                "Skipped '{0}': its view was deleted.".format(legend_name)
             )
             continue
         report = create_or_update(doc, source, definition, settings, options)
@@ -237,7 +237,7 @@ def _run_changes(doc, source_view, definition, settings, plan, report, proposed_
         with TransactionContext(doc, "Prepare legend view") as transaction:
             if legend_view is None:
                 legend_view, duplicate_mode = duplicate_template(doc, template)
-                report["notices"].append("Template legend duplicated with {0}.".format(duplicate_mode))
+                report["notices"].append("New legend made from the template ({0}).".format(duplicate_mode))
                 _rename_legend(doc, legend_view, source_view, definition, True)
                 service = LegendComponentService(doc, legend_view)
                 report["warnings"].extend(service.apply_view_settings_on_create(definition["representation"]))
@@ -259,8 +259,8 @@ def _run_changes(doc, source_view, definition, settings, plan, report, proposed_
             storage = write_view_identity(legend_view, payload, doc)
             if storage == "json_registry":
                 report["warnings"].append(
-                    "Extensible Storage was unavailable. A local JSON registry was written and does not "
-                    "travel with the model. Move the model only after storage succeeds."
+                    "Could not save the legend's link to its view inside the model. It was saved in a "
+                    "local file instead, which does not go with the model if it is moved or shared."
                 )
             parameter_notice = try_write_configured_parameter(
                 legend_view,
@@ -294,14 +294,14 @@ def _run_changes(doc, source_view, definition, settings, plan, report, proposed_
 def _populate(doc, legend_view, source_view, definition, plan, report,
               body_type, header_type, template, allow_delete):
     if template is not None and element_id_value(legend_view.Id) == element_id_value(template.Id):
-        raise LegendOperationError("Refusing to modify the template legend '{0}'.".format(template.Name))
+        raise LegendOperationError("The template legend '{0}' is never changed.".format(template.Name))
     service = LegendComponentService(doc, legend_view)
     full_rebuild = bool(definition["update"].get("full_rebuild"))
     managed = collect_managed_elements(doc, legend_view)
     if full_rebuild and managed:
         delete_managed_elements(doc, [element for element, _payload in managed])
         managed = []
-        report["notices"].append("Full rebuild removed previous tool-managed entries before recreating them.")
+        report["notices"].append("Full rebuild: the old entries were removed and drawn again.")
 
     components = [(element, payload) for element, payload in managed if payload.get("role") == "component"]
     by_type = {}
@@ -313,8 +313,8 @@ def _populate(doc, legend_view, source_view, definition, plan, report,
         report["notices"].append(source_notice)
     if plan["collection"].types and source is None:
         raise LegendOperationError(
-            "No seed legend component was found in '{0}' or in template '{1}'. "
-            "Place one legend component in the template legend and run the command again.".format(
+            "No legend component in '{0}' or in the template '{1}'. "
+            "Put one legend component in the template legend and try again.".format(
                 legend_view.Name, definition["template_legend_name"]
             )
         )
@@ -325,7 +325,7 @@ def _populate(doc, legend_view, source_view, definition, plan, report,
         type_element = doc.GetElement(make_element_id(record.type_id))
         if type_element is None:
             raise LegendOperationError(
-                "Type id {0} is no longer in the model, so its legend component could not be created.".format(
+                "Type id {0} is no longer in the model.".format(
                     record.type_id
                 )
             )
@@ -338,8 +338,8 @@ def _populate(doc, legend_view, source_view, definition, plan, report,
                 report["removed"].append("{0} duplicate".format(record.type_name))
             elif len(existing) > 1:
                 report["warnings"].append(
-                    "Type '{0}' has {1} managed legend components. Extra copies were kept because "
-                    "removal was declined.".format(_type_label(record), len(existing))
+                    "Type '{0}' is in the legend {1} times. The extra copies were kept because "
+                    "you chose not to remove entries.".format(_type_label(record), len(existing))
                 )
         else:
             if fresh_legend and index == 0:
@@ -370,7 +370,7 @@ def _populate(doc, legend_view, source_view, definition, plan, report,
         # The seed came with the template duplicate made in this run, so it is ours to remove.
         _mark(source, definition, source_view, None, "component")
         delete_managed_elements(doc, [source])
-        report["notices"].append("The duplicated seed component was removed because the view has no visible types.")
+        report["notices"].append("The template's legend component was removed because the view has no visible types.")
 
     _sync_labels(
         doc, service, legend_view, source_view, definition, plan, report,
@@ -386,7 +386,7 @@ def _sync_labels(doc, service, legend_view, source_view, definition, plan, repor
     managed = collect_managed_elements(doc, legend_view)
     labels = {(int(payload.get("type_id")), payload.get("label_parameter")): element
               for element, payload in managed if payload.get("role") == "type_label"}
-    blank = definition.get("type_rules", {}).get("blank_label", "–")
+    blank = definition.get("type_rules", {}).get("blank_label", "-")
     origin = DB.XYZ(0, 0, 0)
     for record in plan["collection"].types:
         if record.type_id not in components_by_type:
@@ -485,7 +485,7 @@ def _align(doc, legend_view, source_view, definition, plan, report, viewports, p
         measured = service.measure(component)
         if measured is None:
             report["warnings"].append(
-                "Legend component for '{0}' has no bounding box. The configured graphic size was used.".format(
+                "The legend component for '{0}' has no size yet. The graphic size from the settings was used.".format(
                     _type_label(record)
                 )
             )
@@ -589,7 +589,7 @@ def _add_layer_graphics(doc, service, components, plan, definition, source_view,
         except Exception as ex:
             sub.RollBack()
             report["warnings"].append(
-                "Layer reference planes for '{0}' were rolled back. {1}".format(_type_label(record), ex)
+                "Layer planes for '{0}' were undone. {1}".format(_type_label(record), ex)
             )
             if definition["representation"].get("fallback_detail_lines"):
                 fallback = DB.SubTransaction(doc)
@@ -605,7 +605,7 @@ def _add_layer_graphics(doc, service, components, plan, definition, source_view,
                 except Exception as line_error:
                     fallback.RollBack()
                     report["warnings"].append(
-                        "Detail-line fallback for '{0}' failed and was rolled back. {1}".format(
+                        "Layer lines for '{0}' could not be drawn and were undone. {1}".format(
                             _type_label(record), line_error
                         )
                     )
@@ -618,8 +618,8 @@ def _copy_source(doc, service, managed_components, template):
     if local:
         if len(local) > 1:
             return local[0], (
-                "The legend contains {0} legend components. The first one was used as the seed. "
-                "Keep a single seed in the template so extra components are not copied into new legends.".format(
+                "The legend has {0} legend components; the first was used. Keep only one in the "
+                "template legend.".format(
                     len(local)
                 )
             )
@@ -631,7 +631,7 @@ def _copy_source(doc, service, managed_components, template):
     template_service = LegendComponentService(doc, template)
     seeds = template_service.find_components(template)
     if not seeds:
-        return None, "Template legend '{0}' has no legend component.".format(template.Name)
+        return None, "The template legend '{0}' has no legend component.".format(template.Name)
     try:
         from System.Collections.Generic import List
         ids = List[DB.ElementId]()
@@ -645,7 +645,7 @@ def _copy_source(doc, service, managed_components, template):
         )
     except Exception as ex:
         raise UnsupportedRevitOperationError(
-            "Revit could not copy the seed legend component from '{0}' into the generated legend. {1}".format(
+            "Revit could not copy the legend component from '{0}'. {1}".format(
                 template.Name, ex
             )
         )
@@ -654,7 +654,7 @@ def _copy_source(doc, service, managed_components, template):
     element = doc.GetElement(list(copied)[0])
     notice = None
     if len(seeds) > 1:
-        notice = "Template '{0}' has more than one legend component. Only the first was copied.".format(template.Name)
+        notice = "The template '{0}' has more than one legend component; only the first was used.".format(template.Name)
     return element, notice
 
 
@@ -708,9 +708,9 @@ def _restore_viewports(doc, captured, report):
             viewport.SetBoxCenter(center)
             restored += 1
         except Exception as ex:
-            report["warnings"].append("A legend viewport position could not be restored. {0}".format(ex))
+            report["warnings"].append("A legend could not be put back in its place on the sheet. {0}".format(ex))
     if restored:
-        report["notices"].append("Preserved the sheet position of {0} legend viewport(s).".format(restored))
+        report["notices"].append("Kept the legend in the same place on {0} sheet(s).".format(restored))
 
 
 def _record_measured_overlaps(doc, legend_view, report):
@@ -733,7 +733,7 @@ def _record_measured_overlaps(doc, legend_view, report):
     overlaps = find_overlaps(boxes, mm_to_internal(0.5))
     for first_id, second_id in overlaps:
         report["warnings"].append(
-            "After alignment, '{0}' still overlaps '{1}'.".format(first_id, second_id)
+            "'{0}' still overlaps '{1}'.".format(first_id, second_id)
         )
 
 
@@ -797,6 +797,6 @@ def _record_summary(record):
 
 def _type_label(record):
     mark = record.display.get("Type Mark")
-    if mark and mark != "–":
+    if mark and mark != "-":
         return "{0} {1}".format(mark, record.type_name or record.type_id)
     return record.type_name or str(record.type_id)

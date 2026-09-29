@@ -27,6 +27,22 @@ def find_family(doc, family_name):
     return None
 
 
+def legend_families(doc):
+    """Return (name, type count) for every Generic Annotation and Detail Item family in the model, sorted by name."""
+    DB = get_db()
+    allowed = _allowed_ids(DB)
+    result = []
+    for family in DB.FilteredElementCollector(doc).OfClass(DB.Family):
+        category = getattr(family, "FamilyCategory", None)
+        if category is None or element_id_value(category.Id) not in allowed:
+            continue
+        name = _name(family)
+        if name:
+            result.append((name, len(list(family.GetFamilySymbolIds()))))
+    result.sort(key=lambda item: natural_sort_key(item[0]))
+    return result
+
+
 def family_entries(doc, config):
     """Return (entries, problems) for a category.
 
@@ -38,8 +54,8 @@ def family_entries(doc, config):
     family = find_family(doc, family_name)
     if family is None:
         return [], [
-            "Family '{0}' is not loaded in this model. Load it with Insert > Load Family, or set "
-            "family_name in library_legends.json to the name of your family.".format(family_name)
+            "Family '{0}' is not loaded in this model. Load it, or pick the family for this "
+            "category in Legend Setup.".format(family_name)
         ]
     problem = _category_problem(DB, family, family_name)
     if problem:
@@ -75,19 +91,24 @@ def symbols_by_code(doc, entries):
     return result
 
 
-def _category_problem(DB, family, family_name):
+def _allowed_ids(DB):
     allowed = set()
     for name in ALLOWED_FAMILY_CATEGORIES:
         built_in = getattr(DB.BuiltInCategory, name, None)
         if built_in is not None:
             allowed.add(element_id_value(DB.ElementId(built_in)))
+    return allowed
+
+
+def _category_problem(DB, family, family_name):
+    allowed = _allowed_ids(DB)
     category = getattr(family, "FamilyCategory", None)
     if category is None:
         return None
     if element_id_value(category.Id) not in allowed:
         return (
-            "Family '{0}' is a {1} family. Use a Generic Annotation family (or a Detail Item family) "
-            "so it can be placed in a legend.".format(family_name, getattr(category, "Name", "different"))
+            "Family '{0}' is a {1} family. It has to be a Generic Annotation or Detail Item "
+            "family to go in a legend.".format(family_name, getattr(category, "Name", "different"))
         )
     return None
 

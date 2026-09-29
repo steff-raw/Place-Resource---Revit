@@ -1,6 +1,6 @@
 title: "Legend\nSetup"
 tooltip: >
-  Build a legend from the category symbol family: choose a category, tick types,
-  and one symbol per type is placed in the legend.
+  Pick a category and its symbol family, tick the types, and a legend is made
+  with one symbol per type.
 author: Place Resource
 context: doc-project

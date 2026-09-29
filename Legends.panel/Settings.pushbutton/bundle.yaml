@@ -1,6 +1,6 @@
 title: "Legend\nSettings"
 tooltip: >
-  Validate legends.json or choose a project settings file.
-  Shift-click to pick the file directly.
+  Legend text style and the settings file.
+  Shift-click to pick the settings file.
 author: Place Resource
 context: doc-project

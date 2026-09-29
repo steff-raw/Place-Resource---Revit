@@ -15,7 +15,7 @@ class ValidationError(LegendToolError):
 
 
 class LegendOperationError(LegendToolError):
-    """A legend create or update step failed and was rolled back."""
+    """A legend create or update step failed and was undone."""
 
 
 class UnsupportedRevitOperationError(LegendToolError):

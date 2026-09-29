@@ -102,9 +102,9 @@ class ParameterResolver(object):
                         source = "name:" + name
                         if not spec.get("builtin") and not spec.get("guid"):
                             notice = (
-                                "Parameter '{0}' was read by the exact name '{1}'. "
-                                "Add a built-in parameter or shared GUID to the alias file "
-                                "so a translated project does not break this lookup.".format(key, name)
+                                "Parameter '{0}' was found by its exact name '{1}'. Add a built-in "
+                                "parameter or shared GUID to the alias file so it also works in "
+                                "projects in another language.".format(key, name)
                             )
                         break
 
@@ -115,7 +115,7 @@ class ParameterResolver(object):
                 source = "default"
                 if required:
                     warning = (
-                        "Required parameter '{0}' was not found. The configured default was used.".format(key)
+                        "Required parameter '{0}' was not found. The default from the settings was used.".format(key)
                     )
             else:
                 source = "missing"
@@ -126,13 +126,13 @@ class ParameterResolver(object):
                     warning = self._missing_message(key, required, unmapped)
         elif unmapped and source and source.startswith("name:"):
             notice = (
-                "Parameter '{0}' is not in the alias file. The exact name matched. "
-                "Add a built-in parameter or GUID before relying on this in other languages.".format(key)
+                "Parameter '{0}' is not in the alias file but was found by its exact name. Add a "
+                "built-in parameter or GUID so it also works in other languages.".format(key)
             )
 
         display = self._display(raw_value, value_format, decimals)
         if source == "missing":
-            display = self.type_rules.get("blank_label", "–")
+            display = self.type_rules.get("blank_label", "-")
         return ResolvedValue(key, raw_value, display, source, warning=warning, notice=notice)
 
     def _spec_for(self, key):
@@ -163,14 +163,14 @@ class ParameterResolver(object):
             )
         if required:
             return (
-                "Required parameter '{0}' could not be resolved from a built-in parameter, "
-                "shared GUID, exact name, or default.".format(key)
+                "Required parameter '{0}' was not found by built-in parameter, GUID, name or "
+                "default.".format(key)
             )
         return None
 
     def _display(self, raw_value, value_format, decimals):
         if _is_blank(raw_value):
-            return self.type_rules.get("blank_label", "–")
+            return self.type_rules.get("blank_label", "-")
         if value_format == "millimetres":
             if isinstance(raw_value, (int, float)) and not isinstance(raw_value, bool):
                 return format_millimetres(raw_value, decimals)

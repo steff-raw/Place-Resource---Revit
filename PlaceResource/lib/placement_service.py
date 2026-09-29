@@ -116,19 +116,19 @@ def interactive_place(doc, uidoc, source_view, legend_view, definition, active_s
         sheet = active_sheet
     else:
         sheets = sheets_containing_view(doc, source_view)
-        title = "Select the sheet that contains the source view"
+        title = "Pick the sheet for the legend"
         if not sheets:
             sheets = all_sheets(doc)
-            title = "The source view is not on a sheet. Select a sheet for the legend."
+            title = "The view is not on a sheet yet. Pick a sheet for the legend."
         if not sheets:
-            raise LegendOperationError("This model has no sheets, so the legend cannot be placed.")
+            raise LegendOperationError("This model has no sheets.")
         sheet = choose_named_item(title, sheets, sheet_label)
         if sheet is None:
             return None, []
     prevent = bool((definition.get("sheet_placement") or {}).get("prevent_duplicate_on_same_sheet", True))
     if prevent and legend_viewport_on_sheet(doc, sheet, legend_view) is not None:
         raise LegendOperationError(
-            "Legend '{0}' is already on sheet '{1}'. Its position was left unchanged.".format(
+            "Legend '{0}' is already on sheet '{1}'. It was left where it is.".format(
                 legend_view.Name, sheet_label(sheet)
             )
         )
@@ -149,8 +149,8 @@ def _pick_on_sheet(uidoc, sheet):
             uidoc.ActiveView = sheet
         except Exception as ex:
             raise LegendOperationError(
-                "Open sheet '{0}' before picking a point, or set sheet_placement.mode "
-                "to configured_point. Revit did not activate the sheet. {1}".format(sheet_label(sheet), ex)
+                "Could not open sheet '{0}' to pick a point. Open it first, or set sheet_placement.mode "
+                "to configured_point. {1}".format(sheet_label(sheet), ex)
             )
     try:
         return pick_sheet_point(uidoc)
@@ -169,7 +169,7 @@ def place_on_sheet(doc, sheet, legend_view, point, prevent_duplicate=True):
         existing = legend_viewport_on_sheet(doc, sheet, legend_view)
         if existing is not None:
             raise LegendOperationError(
-                "Legend '{0}' is already on sheet '{1}'. Its position was left unchanged.".format(
+                "Legend '{0}' is already on sheet '{1}'. It was left where it is.".format(
                     legend_view.Name, sheet_label(sheet)
                 )
             )
@@ -183,8 +183,7 @@ def place_on_sheet(doc, sheet, legend_view, point, prevent_duplicate=True):
         )
     if not allowed:
         raise LegendOperationError(
-            "Revit will not place '{0}' on sheet '{1}'. The view may already be placed "
-            "or the sheet may not accept it.".format(legend_view.Name, sheet_label(sheet))
+            "Revit will not put '{0}' on sheet '{1}'.".format(legend_view.Name, sheet_label(sheet))
         )
     with TransactionContext(doc, "Place legend on sheet") as transaction:
         try:

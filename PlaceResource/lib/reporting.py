@@ -30,7 +30,7 @@ def print_plan(plan, definition):
         ])
     _print_table(rows, ["Type Mark", "Type Name", "Family", "Instances", "Fire Rating", "Width"])
     if plan["to_add"]:
-        _print_md("\n## Planned additions\n")
+        _print_md("\n## New rows\n")
         for record in plan["to_add"]:
             _print_md("- {0}".format(record.type_name))
     if plan["to_remove"]:
@@ -42,9 +42,8 @@ def print_plan(plan, definition):
     _print_messages("Notices", collection.notices[:8])
     block = plan["estimate"]["block"]
     _print_md(
-        "\nEstimated block size from the settings file: {0:.0f} mm wide by {1:.0f} mm high. "
-        "Measured alignment runs only after you commit, because Revit must create the elements "
-        "before their bounding boxes exist.".format(block["width"] * 304.8, block["height"] * 304.8)
+        "\nRough size: {0:.0f} x {1:.0f} mm. Final spacing is set once the legend is "
+        "made.".format(block["width"] * 304.8, block["height"] * 304.8)
     )
 
 
@@ -53,16 +52,16 @@ def print_report(report):
     _print_md("\n".join([
         "# Legend {0}".format(report.get("status")),
         "",
-        "- Source view: {0}".format(_link(report.get("source_view_id"), report.get("source_view_name"))),
+        "- View: {0}".format(_link(report.get("source_view_id"), report.get("source_view_name"))),
         "- Legend: {0}".format(_link(report.get("legend_view_id"), report.get("legend_view_name"))),
-        "- Definition: {0}".format(report.get("definition_name")),
-        "- Wall instances found: {0}".format(report.get("instance_count")),
-        "- Unique types found: {0}".format(report.get("unique_type_count")),
-        "- Entries added: {0}".format(len(report.get("added") or [])),
-        "- Entries updated: {0}".format(len(report.get("updated") or [])),
-        "- Entries removed: {0}".format(len(report.get("removed") or [])),
-        "- Entries realigned: {0}".format(report.get("realigned")),
-        "- Host: {0}".format(report.get("host")),
+        "- Legend type: {0}".format(report.get("definition_name")),
+        "- Elements found: {0}".format(report.get("instance_count")),
+        "- Types found: {0}".format(report.get("unique_type_count")),
+        "- Rows added: {0}".format(len(report.get("added") or [])),
+        "- Rows updated: {0}".format(len(report.get("updated") or [])),
+        "- Rows removed: {0}".format(len(report.get("removed") or [])),
+        "- Rows lined up: {0}".format(report.get("realigned")),
+        "- Revit: {0}".format(report.get("host")),
         "- Tool version: {0}".format(report.get("version")),
     ]))
     _print_messages("Added", report.get("added") or [])
@@ -76,7 +75,7 @@ def print_report(report):
 def print_batch(summary):
     """Print the project-wide update summary."""
     _print_md("\n".join([
-        "# Update all generated legends",
+        "# Update all legends",
         "",
         "- Status: {0}".format(summary.get("status")),
         "- Updated: {0}".format(len(summary.get("updated") or [])),
@@ -102,28 +101,28 @@ def print_batch(summary):
 
 def print_audit(audit):
     """Print the audit with clickable element links when pyRevit provides them."""
-    _print_md("# Generated legend audit\n")
+    _print_md("# Legend audit\n")
     if not audit["rows"]:
-        _print_md("No tool-managed legends were found.")
+        _print_md("No legends made by this tool were found.")
     for row in audit["rows"]:
         _print_md("\n".join([
             "## {0}".format(row["legend_view_name"]),
             "",
             "- Legend: {0}".format(_link(row["legend_view_id"], row["legend_view_name"])),
-            "- Source view: {0}".format(
+            "- View: {0}".format(
                 "Deleted source {0}".format(row["source_view_id"])
                 if row["source_missing"]
                 else _link(row["source_view_id"], row["source_view_name"])
             ),
-            "- Definition: {0}".format(row["definition_name"] or row["definition_id"]),
+            "- Legend type: {0}".format(row["definition_name"] or row["definition_id"]),
             "- Placed on sheets: {0}".format(", ".join(row["sheets"]) or "No"),
             "- Last update: {0}".format(row.get("updated_utc") or "Unknown"),
             "- Tool version: {0}".format(row.get("tool_version") or "Unknown"),
             "- Visible types: {0}".format(len(row.get("visible_type_ids") or [])),
-            "- Represented types: {0}".format(len(set(row.get("represented_type_ids") or []))),
+            "- Types in the legend: {0}".format(len(set(row.get("represented_type_ids") or []))),
             "- Missing from the legend: {0}".format(_id_list(row.get("missing_type_ids"))),
-            "- Obsolete legend entries: {0}".format(_id_list(row.get("obsolete_type_ids"))),
-            "- Duplicate entries: {0}".format(_id_list(row.get("duplicate_type_ids"))),
+            "- In the legend but no longer visible: {0}".format(_id_list(row.get("obsolete_type_ids"))),
+            "- Listed twice: {0}".format(_id_list(row.get("duplicate_type_ids"))),
             "- Overlaps: {0}".format(len(row.get("overlaps") or [])),
         ]))
         _print_messages("Parameter warnings", row.get("missing_parameters") or [])
@@ -141,7 +140,7 @@ def print_library_report(report):
         "# {0} legend {1}".format(report.get("category"), report.get("status")),
         "",
         "- Legend: {0}".format(_link(report.get("legend_view_id"), report.get("legend_view_name"))),
-        "- Sheet: {0}".format(report.get("sheet") or "Master legend (not tied to a sheet)"),
+        "- Sheet: {0}".format(report.get("sheet") or "none (category legend)"),
         "- Rows: {0}".format(len(report.get("codes") or [])),
     ]))
     _print_messages("Codes", report.get("codes") or [])

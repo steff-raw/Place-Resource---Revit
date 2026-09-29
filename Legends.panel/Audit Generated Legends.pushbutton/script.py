@@ -43,9 +43,8 @@ def _find_lib():
                     del sys.modules[name]
             return lib
     raise ImportError(
-        "Place Resource lib folder was not found. Copy 'lib' and 'config' to "
-        "Documents\\Gensler\\Python\\PlaceResource, or set PLACE_RESOURCE_HOME to the folder that "
-        "contains them. Checked: " + "; ".join(os.path.abspath(item) for item in candidates if item)
+        "PlaceResource folder not found. Copy lib and config to "
+        "Documents\\Gensler\\Python\\PlaceResource, or set PLACE_RESOURCE_HOME. Looked in: " + "; ".join(os.path.abspath(item) for item in candidates if item)
     )
 
 
@@ -66,7 +65,7 @@ LOGGER = get_logger("audit_generated_legends")
 
 
 def main():
-    """Print a read-only audit of every tool-managed legend."""
+    """Print a read-only audit of every legend made by this tool."""
     doc = revit.doc
     assert_project_document(doc)
     settings = load_settings()
@@ -88,4 +87,4 @@ if __name__ == "__main__":
         alert_error("Audit Generated Legends", str(error))
     except Exception as error:
         LOGGER.exception("Audit Generated Legends failed")
-        alert_error("Audit Generated Legends", "Unexpected failure: {0}".format(error))
+        alert_error("Audit Generated Legends", "Something went wrong: {0}".format(error))

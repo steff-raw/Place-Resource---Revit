@@ -154,9 +154,8 @@ def get_adapter(category_name):
         return GenericCategoryAdapter(category_name)
     from errors import ConfigurationError
     raise ConfigurationError(
-        "Category {0} does not have an adapter. Walls are the tested target. "
-        "Doors, windows, floors, ceilings, furniture, and generic models use the generic adapter "
-        "when you add a legend definition and a matching template seed.".format(category_name)
+        "Category {0} is not supported. Use walls, doors, windows, floors, ceilings, furniture, "
+        "generic models, columns, roofs, stairs, casework or specialty equipment.".format(category_name)
     )
 
 

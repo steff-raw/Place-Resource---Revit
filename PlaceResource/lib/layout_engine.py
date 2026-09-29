@@ -205,8 +205,7 @@ def compute_layout(entries, labels, layout_internal, header_height=None, show_he
                 label_widths[column][label_index] = measured_width
                 expanded_labels.append(label["parameter"])
                 warnings.append(
-                    "Label '{0}' is wider than its configured column. "
-                    "The column was expanded so it does not overlap the next field.".format(
+                    "'{0}' is wider than its column, so the column was widened.".format(
                         label.get("heading") or label["parameter"]
                     )
                 )
@@ -328,7 +327,7 @@ def compute_layout(entries, labels, layout_internal, header_height=None, show_he
     overlaps = find_overlaps(boxes, tolerance)
     for first_id, second_id in overlaps:
         warnings.append(
-            "Layout boxes '{0}' and '{1}' overlap. Increase row height or column width.".format(
+            "'{0}' and '{1}' overlap. Increase the row height or column width.".format(
                 first_id, second_id
             )
         )

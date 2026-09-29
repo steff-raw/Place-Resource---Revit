@@ -75,7 +75,7 @@
         "duplicate_sort_key": "keep_all",
         "linked_type_match": "family_and_type_name",
         "unmapped_linked_type": "warn_and_skip",
-        "blank_label": "–"
+        "blank_label": "-"
       },
       "sheet_placement": {
         "mode": "pick_point",
@@ -157,7 +157,7 @@
         "duplicate_sort_key": "keep_all",
         "linked_type_match": "family_and_type_name",
         "unmapped_linked_type": "warn_and_skip",
-        "blank_label": "–"
+        "blank_label": "-"
       },
       "sheet_placement": {
         "mode": "pick_point",
@@ -239,7 +239,7 @@
         "duplicate_sort_key": "keep_all",
         "linked_type_match": "family_and_type_name",
         "unmapped_linked_type": "warn_and_skip",
-        "blank_label": "–"
+        "blank_label": "-"
       },
       "sheet_placement": {
         "mode": "pick_point",
@@ -315,7 +315,7 @@
         "duplicate_sort_key": "keep_all",
         "linked_type_match": "family_and_type_name",
         "unmapped_linked_type": "warn_and_skip",
-        "blank_label": "–"
+        "blank_label": "-"
       },
       "sheet_placement": {
         "mode": "pick_point",

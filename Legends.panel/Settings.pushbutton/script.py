@@ -45,9 +45,8 @@ def _find_lib():
                     del sys.modules[name]
             return lib
     raise ImportError(
-        "Place Resource lib folder was not found. Copy 'lib' and 'config' to "
-        "Documents\\Gensler\\Python\\PlaceResource, or set PLACE_RESOURCE_HOME to the folder that "
-        "contains them. Checked: " + "; ".join(os.path.abspath(item) for item in candidates if item)
+        "PlaceResource folder not found. Copy lib and config to "
+        "Documents\\Gensler\\Python\\PlaceResource, or set PLACE_RESOURCE_HOME. Looked in: " + "; ".join(os.path.abspath(item) for item in candidates if item)
     )
 
 
@@ -73,26 +72,26 @@ LOGGER = get_logger("legend_settings")
 def main():
     """Validate the current file or point the tool at another JSON file."""
     action = choose_settings_action(revit.doc)
-    if action == "Choose legend text style":
+    if action == "Legend text style":
         name = choose_text_type(revit.doc)
         if name:
-            alert("Legend text will use '{0}' in this model.".format(name), title="Legend Settings")
-    elif action == "Validate configuration":
+            alert("Legends in this model will use '{0}'.".format(name), title="Legend Settings")
+    elif action == "Check the settings file":
         _validate(resolve_settings_path())
-    elif action == "Choose configuration file":
+    elif action == "Use a different settings file":
         path = pick_settings_file()
         if not path:
             return
         load_settings(path)
         set_settings_override(path)
-        alert("Legend settings will now be read from:\n{0}".format(path), title="Legend Settings")
-    elif action == "Use the built-in configuration":
+        alert("Settings will now come from:\n{0}".format(path), title="Legend Settings")
+    elif action == "Use the default settings file":
         set_settings_override(None)
         _validate(default_settings_path())
-    elif action == "Show configuration file location":
+    elif action == "Where is the settings file?":
         _open(resolve_settings_path())
     elif action:
-        raise LegendToolError("Unknown settings action '{0}'.".format(action))
+        raise LegendToolError("Unknown setting '{0}'.".format(action))
 
 
 def _validate(path):
@@ -101,7 +100,7 @@ def _validate(path):
         "- {0} ({1})".format(item["display_name"], item["category"])
         for item in settings["data"]["legend_definitions"]
     )
-    message = "Settings are valid.\n\nFile: {0}\nSchema: {1}\nAlias file: {2}\n\nDefinitions:\n{3}".format(
+    message = "Settings file is OK.\n\nFile: {0}\nSchema: {1}\nAlias file: {2}\n\nDefinitions:\n{3}".format(
         settings["path"],
         settings["data"]["schema_version"],
         settings["alias_path"],
@@ -112,7 +111,7 @@ def _validate(path):
 
 def _open(path):
     # The tool never starts another program. Show the path so the user opens it themselves.
-    alert("Open this file in your editor:\n{0}".format(path), title="Legend Settings")
+    alert("Settings file:\n{0}".format(path), title="Legend Settings")
 
 
 if __name__ == "__main__":
@@ -123,4 +122,4 @@ if __name__ == "__main__":
         alert_error("Legend Settings", str(error))
     except Exception as error:
         LOGGER.exception("Legend Settings failed")
-        alert_error("Legend Settings", "Unexpected failure: {0}".format(error))
+        alert_error("Legend Settings", "Something went wrong: {0}".format(error))

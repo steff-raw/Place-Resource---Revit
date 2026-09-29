@@ -164,7 +164,7 @@ def collect_visible_types(doc, view, definition, aliases):
             ))
         else:
             result.warnings.append(
-                "Sheet '{0}' has no {1} view placed on it, so no types were collected.".format(
+                "Sheet '{0}' has no {1} view on it, so nothing was found.".format(
                     source_display_name(view), " / ".join(definition.get("source_view_types") or [])
                 )
             )
@@ -228,7 +228,7 @@ def _consume_instance(doc, view, adapter, element, include, grouped, result, is_
         return
     if facts.get("kind") == "unknown" and facts["type_id"] not in grouped:
         result.notices.append(
-            "A wall with type id {0} has an unrecognised wall kind and was included.".format(facts.get("type_id"))
+            "Wall type id {0} is of an unknown kind. It was included.".format(facts.get("type_id"))
         )
     instance_key = ("host", element_id_value(element.Id))
     if instance_key in result.seen_instances:
@@ -247,10 +247,8 @@ def _collect_links(doc, view, adapter, include, definition, grouped, result):
     from version_adapter import element_id_value, get_db
     DB = get_db()
     result.warnings.append(
-        "Linked elements are collected from each loaded link document. "
-        "Host view filters, phase filters, crop regions, and temporary hide "
-        "do not apply to those elements with the same fidelity as host elements. "
-        "A linked type is used only when a host type matches its family and type name."
+        "Linked walls ignore the host view's filters, phase and crop. A linked type is only used "
+        "if this model has a type with the same family and type name."
     )
     try:
         links = DB.FilteredElementCollector(doc, view.Id).OfClass(DB.RevitLinkInstance)
@@ -314,8 +312,7 @@ def _consume_linked_element(doc, view, adapter, element, include, definition, gr
     if host_type is None:
         family_name, type_name = _type_names(type_element)
         result.warnings.append(
-            "Linked type '{0}: {1}' from '{2}' has no matching type in this model. "
-            "It was not added to the legend because a legend component cannot use a type from another document.".format(
+            "Linked type '{0}: {1}' from '{2}' has no matching type in this model and was left out.".format(
                 family_name, type_name, link.Name
             )
         )
@@ -424,10 +421,10 @@ def _build_records(doc, adapter, grouped, definition, resolver, result):
                     result.warnings.append(message)
             if resolved.notice:
                 record.notices.append(resolved.notice)
-        if "Family Name" not in record.display or record.display.get("Family Name") in (None, "", "–"):
+        if "Family Name" not in record.display or record.display.get("Family Name") in (None, "", "-"):
             record.display["Family Name"] = record.family_name
             record.raw["Family Name"] = record.family_name
-        if "Type Name" not in record.display or record.display.get("Type Name") in (None, "", "–"):
+        if "Type Name" not in record.display or record.display.get("Type Name") in (None, "", "-"):
             record.display["Type Name"] = record.type_name
             record.raw["Type Name"] = record.type_name
         records.append(record)
@@ -486,7 +483,7 @@ def _duplicate_mark_warning(result, definition):
     groups = {}
     for record in result.types:
         mark = record.display.get("Type Mark")
-        if mark in (None, "", "–"):
+        if mark in (None, "", "-"):
             continue
         groups.setdefault(str(mark), []).append(record)
     for mark, records in groups.items():
@@ -494,7 +491,7 @@ def _duplicate_mark_warning(result, definition):
             names = ", ".join(record.type_name or str(record.type_id) for record in records)
             result.warnings.append(
                 "Type Mark '{0}' is used by {1} types ({2}). "
-                "Each type stays as its own legend entry.".format(mark, len(records), names)
+                "Each type gets its own row.".format(mark, len(records), names)
             )
 
 
@@ -537,7 +534,7 @@ def _warn_if_category_hidden(doc, view, adapter, result):
         category = DB.Category.GetCategory(doc, adapter.built_in_category())
         if category is not None and view.GetCategoryHidden(category.Id):
             result.warnings.append(
-                "The {0} category is hidden in '{1}'. The view-scoped collector will not return those elements.".format(
+                "The {0} category is hidden in '{1}', so none were found.".format(
                     category.Name, view.Name
                 )
             )
@@ -577,14 +574,9 @@ def _view_info(view):
 
 def _visibility_notices(view):
     notices = [
-        "Elements come from a view-scoped collector. Revit applies the view phase, phase filter, "
-        "design option visibility, category visibility, view filters that hide elements, permanent "
-        "element hide, closed worksets, and the crop region before the tool sees the elements.",
-        "Detail level and view discipline are reported but are not an extra filter. "
-        "They change graphics more often than they remove elements from the collector.",
-        "The active design option in the UI is not used as a filter. The view's own design option visibility is.",
-        "Parts shown instead of the original wall are not wall types. When the view is set to Show Parts Only, "
-        "the original wall is excluded unless when_parts_replace_original is true.",
+        "Only what the view shows is listed: phase, filters, hidden elements, closed worksets and crop all apply.",
+        "Design options follow the view's own settings, not the active option.",
+        "Walls shown as parts only are left out unless when_parts_replace_original is true.",
     ]
     try:
         from version_adapter import get_db
@@ -592,22 +584,17 @@ def _visibility_notices(view):
         if view.IsInTemporaryViewMode(DB.TemporaryViewMode.TemporaryHideIsolate):
             if _temporary_hidden_ids(view) is None:
                 notices.append(
-                    "Temporary hide/isolate is active. This Revit version did not expose a temporary-hide list, "
-                    "so only the view-scoped collector was used for that mode."
+                    "Temporary hide/isolate is on. This Revit version can't list the hidden elements, "
+                    "so they may still be in the legend. Reset temporary hide and run it again to be sure."
                 )
             else:
-                notices.append("Temporary hide/isolate is active and those hidden elements were excluded.")
+                notices.append("Elements hidden with temporary hide/isolate were left out.")
     except Exception:
-        notices.append(
-            "Temporary hide/isolate could not be queried. Visibility follows the view-scoped collector."
-        )
+        notices.append("Temporary hide/isolate could not be checked.")
     try:
         filters = list(view.GetFilters())
         if filters:
-            notices.append(
-                "{0} view filter(s) are attached. Filters that hide elements are applied by the collector "
-                "and are not evaluated a second time.".format(len(filters))
-            )
+            notices.append("{0} view filter(s) applied.".format(len(filters)))
     except Exception:
         pass
     return notices

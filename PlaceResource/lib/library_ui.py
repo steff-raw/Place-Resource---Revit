@@ -8,13 +8,14 @@ before any transaction. Model changes happen only in library_legend_service.
 import dialogs
 from identity import find_library_legend, read_view_payload
 from legend_library import match_type_marks
-from library_legend_service import build_library_legend
+from library_legend_service import build_library_legend, project_library
 from reporting import alert_error, print_library_report
-from symbol_library import family_entries
+from symbol_library import family_entries, find_family, legend_families
 
 
 def choose_category(doc, library_settings, title="Legend Setup", prompt=None):
     """Return a category name, or None when cancelled. Each row shows its family and type count."""
+    library_settings = project_library(doc, library_settings)
     names = list(library_settings["categories"].keys())
     labels = []
     details = []
@@ -32,6 +33,44 @@ def choose_category(doc, library_settings, title="Legend Setup", prompt=None):
     return None if index is None else names[index]
 
 
+def choose_family(doc, category, config):
+    """Pick the symbol family for a category from the families loaded in the model and save it.
+
+    Returns the family name, or None when cancelled or no suitable family is loaded.
+    """
+    families = legend_families(doc)
+    if not families:
+        dialogs.alert(
+            "No Generic Annotation or Detail Item families are loaded in this model. "
+            "Load your legend symbol family first.",
+            title="Legend Setup",
+        )
+        return None
+    names = [name for name, _count in families]
+    current = config["family_name"]
+    preselected = None
+    for index, name in enumerate(names):
+        if name.strip().lower() == current.strip().lower():
+            preselected = index
+            break
+    index = dialogs.choose_from_list(
+        "{0} legend family".format(category),
+        names,
+        prompt="Pick the symbol family for {0}. Its type names are the Type Marks. "
+               "Current: {1}".format(category, current if preselected is not None else "none"),
+        button_text="Next",
+        details=["{0} type{1}".format(count, "" if count == 1 else "s") for _name, count in families],
+        selected_index=preselected or 0,
+    )
+    if index is None:
+        return None
+    chosen = names[index]
+    if chosen != current:
+        from project_settings import assign_family
+        assign_family(doc, category, chosen)
+    return chosen
+
+
 def choose_rows(doc, config, preselected_codes, prompt):
     """Return the ticked entries (family order), or None when cancelled or the family is unusable."""
     entries, problems = family_entries(doc, config)
@@ -40,7 +79,7 @@ def choose_rows(doc, config, preselected_codes, prompt):
         return None
     if not entries:
         dialogs.alert(
-            "Family '{0}' has no types. Add one type per code (type name = Type Mark, e.g. IWS-105).".format(
+            "Family '{0}' has no types. Add one type per Type Mark, named after it (e.g. IWS-105).".format(
                 config["family_name"]
             ),
             title="Legend library",
@@ -65,7 +104,11 @@ def run_setup(doc, library_settings):
     category = choose_category(doc, library_settings)
     if category is None:
         return None
-    config = library_settings["categories"][category]
+    config = dict(project_library(doc, library_settings)["categories"][category])
+    family = choose_family(doc, category, config)
+    if family is None:
+        return None
+    config["family_name"] = family
     existing = find_library_legend(doc, category, None)
     stored = (read_view_payload(existing) or {}).get("codes") if existing is not None else None
     if stored is None:
@@ -95,7 +138,12 @@ def run_sheet_legend(doc, uidoc, sheet, category, library_settings):
     """Place Legend: rows for one category on one sheet, then place the legend. Returns the report or None."""
     from collectors import type_marks_for_source
     from placement_service import interactive_place, legend_viewport_on_sheet, sheet_label
-    config = library_settings["categories"][category]
+    config = dict(project_library(doc, library_settings)["categories"][category])
+    if find_family(doc, config["family_name"]) is None:
+        family = choose_family(doc, category, config)
+        if family is None:
+            return None
+        config["family_name"] = family
     existing = find_library_legend(doc, category, sheet)
     if existing is not None:
         preselected = (read_view_payload(existing) or {}).get("codes") or []
@@ -146,7 +194,7 @@ def _ensure_text(doc, config):
 
 def _confirm(category, config, chosen, existing):
     content = "\n".join([
-        "Rows: {0} type(s) of family '{1}'".format(len(chosen), config["family_name"]),
+        "Rows: {0} types of family '{1}'".format(len(chosen), config["family_name"]),
         "Existing legend: {0}".format(existing.Name if existing is not None else "None, a new one will be made"),
         "Template legend: {0}".format(config["template_legend_name"]),
         "Scale: 1:{0}".format(config["scale"]),

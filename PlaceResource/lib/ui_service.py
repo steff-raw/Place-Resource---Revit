@@ -33,18 +33,17 @@ def confirm_plan(source_view, definition, plan, sheet_mode=False):
     In sheet mode the source is a sheet, and placing on that sheet is the first option.
     """
     collection = plan["collection"]
-    existing = plan["existing_name"] or "None — a new legend will be duplicated from the template"
+    existing = plan["existing_name"] or "None. A new legend will be made from the template."
     block = plan["estimate"]["block"]
     summary = [
-        "Source view: {0} ({1})".format(source_view.Name, collection.view_info.get("view_type") or ""),
-        "Legend definition: {0}".format(definition["display_name"]),
-        "Visible instances: {0}".format(collection.instance_count),
-        "Unique types: {0}".format(collection.unique_type_count),
-        "Existing generated legend: {0}".format(existing),
-        "Update mode: {0}".format(plan["mode"]),
-        "Entries to add: {0}".format(len(plan["to_add"])),
-        "Entries no longer visible: {0}".format(len(plan["to_remove"])),
-        "Estimated size: {0:.0f} x {1:.0f} mm (settings preview, not measured boxes)".format(
+        "View: {0} ({1})".format(source_view.Name, collection.view_info.get("view_type") or ""),
+        "Legend: {0}".format(definition["display_name"]),
+        "Elements found: {0}".format(collection.instance_count),
+        "Types: {0}".format(collection.unique_type_count),
+        "Existing legend: {0}".format(existing),
+        "New rows: {0}".format(len(plan["to_add"])),
+        "Rows no longer visible: {0}".format(len(plan["to_remove"])),
+        "Rough size: {0:.0f} x {1:.0f} mm".format(
             block["width"] * 304.8, block["height"] * 304.8
         ),
     ]
@@ -52,14 +51,14 @@ def confirm_plan(source_view, definition, plan, sheet_mode=False):
     if source_views:
         summary.insert(1, "Views on the sheet: {0}".format(", ".join(source_views)))
     if collection.warnings:
-        summary.append("Warnings before commit: {0}. Details are in the output window.".format(
+        summary.append("Warnings: {0}. See the output window.".format(
             len(collection.warnings)
         ))
-    preview = ("preview", "Preview only", "Leave the model unchanged. The output window keeps the preview.")
+    preview = ("preview", "Preview only", "Nothing changes. The list stays in the output window.")
     if sheet_mode:
         options = [
             ("apply_and_place", "Create or update, and place it on this sheet",
-             "If the legend is already on this sheet, its position is kept."),
+             "If it is already on this sheet it stays where it is."),
             ("apply", "Create or update only"),
             preview,
         ]
@@ -90,11 +89,11 @@ def confirm_delete(type_labels):
     if len(type_labels) > 20:
         extra = "\n... and {0} more".format(len(type_labels) - 20)
     return dialogs.ask_yes_no(
-        "Remove obsolete legend entries",
-        "Remove {0} legend entr{1} that are no longer visible in the source view?".format(
-            len(type_labels), "y" if len(type_labels) == 1 else "ies"
+        "Remove old legend rows",
+        "Remove {0} row{1} no longer visible in the view?".format(
+            len(type_labels), "" if len(type_labels) == 1 else "s"
         ),
-        content="{0}{1}\n\nOnly tool-managed entries are removed. Manual notes stay.".format(preview, extra),
+        content="{0}{1}\n\nNotes you added by hand are never removed.".format(preview, extra),
         yes_label="Remove them",
         no_label="Keep them",
     )
@@ -128,26 +127,26 @@ def pick_sheet_point(uidoc):
 
 
 SETTINGS_ACTIONS = (
-    "Choose legend text style",
-    "Validate configuration",
-    "Choose configuration file",
-    "Use the built-in configuration",
-    "Show configuration file location",
+    "Legend text style",
+    "Check the settings file",
+    "Use a different settings file",
+    "Use the default settings file",
+    "Where is the settings file?",
 )
 
 
 SETTINGS_DETAILS = (
-    "text note type for legend headings and type-legend text; saved in this Revit model",
-    "check the settings file and list its legend definitions",
-    "use a project-specific settings file (JSON)",
-    "go back to the settings file shipped with the tool",
-    "show where the settings file is, to open it in your editor",
+    "text type for legend headings and labels, saved in this model",
+    "list what the settings file contains",
+    "pick a JSON file for this project",
+    "go back to the file that came with the tool",
+    "show the file path so you can open it",
 )
 
 
 def choose_settings_action(doc=None):
     """Return the settings command the user picked, or None."""
-    prompt = "Choose a setting, then press Open. The text style is saved in this Revit model."
+    prompt = "Choose a setting and press Open."
     if doc is not None:
         import project_settings
         try:
@@ -173,11 +172,11 @@ def choose_text_type(doc, reason=None):
     import project_settings
     names = text_type_names(doc)
     if not names:
-        dialogs.alert("This project has no text note types.", title="Legend text style")
+        dialogs.alert("This project has no text types.", title="Legend text style")
         return None
     current = project_settings.read(doc)["text_type"]
     labels = ["{0}{1}".format(name, "   (current)" if name == current else "") for name in names]
-    prompt = "Choose the text style for text the tool writes (legend headings and type-legend labels)."
+    prompt = "Choose the text type for legend headings and labels."
     if reason:
         prompt = "{0} {1}".format(reason, prompt)
     index = dialogs.choose_from_list(
@@ -204,7 +203,7 @@ def ensure_text_style(doc, fallback_names):
         return True
     return choose_text_type(
         doc,
-        reason="The text style in the settings file ({0}) is not in this project.".format(", ".join(names)),
+        reason="{0} is not in this project.".format(" / ".join(names)),
     ) is not None
 
 

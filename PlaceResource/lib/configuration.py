@@ -91,7 +91,7 @@ BEHAVIOUR_DEFAULTS = {
         "duplicate_sort_key": "keep_all",
         "linked_type_match": "family_and_type_name",
         "unmapped_linked_type": "warn_and_skip",
-        "blank_label": "–",
+        "blank_label": "-",
     },
     "sheet_placement": {
         "mode": "pick_point",
@@ -140,8 +140,7 @@ def resolve_settings_path():
         if custom:
             if not os.path.isfile(custom):
                 raise ConfigurationError(
-                    "The configured settings file does not exist: {0}. "
-                    "Open Place Resources > Settings and choose a file, "
+                    "The chosen settings file is gone: {0}. Pick another in Place Resources > Settings, "
                     "or delete {1}.".format(custom, pointer)
                 )
             return custom
@@ -185,8 +184,7 @@ def migrate_settings(data):
     version = data.get("schema_version")
     if version != SUPPORTED_SCHEMA:
         raise ConfigurationError(
-            "Settings schema_version '{0}' is not supported. This build reads schema {1}. "
-            "Add a migration before changing the file version.".format(version, SUPPORTED_SCHEMA)
+            "Settings schema_version '{0}' is not supported. This version reads {1}.".format(version, SUPPORTED_SCHEMA)
         )
     return data
 
@@ -264,8 +262,8 @@ def definition_by_id(settings, definition_id):
 def _read_json(path):
     if not os.path.isfile(path):
         raise ConfigurationError(
-            "Cannot find settings file {0}. Install the extension config folder "
-            "or choose a file from Place Resources > Settings.".format(path)
+            "Settings file not found: {0}. Copy the config folder, or pick a file in "
+            "Place Resources > Settings.".format(path)
         )
     try:
         with open(path, "r", encoding="utf-8-sig") as handle:
@@ -362,8 +360,8 @@ def _validate_include(definition, label):
         wall_keys = [key for key in WALL_ONLY_INCLUDE if key in include]
         if wall_keys:
             raise ConfigurationError(
-                "{0} has wall-only flags ({1}) but the category is {2}. Remove them. "
-                "Use in_place, linked_models, and demolished for this category.".format(
+                "{0} has wall-only settings ({1}) but the category is {2}. Use in_place, "
+                "linked_models and demolished instead.".format(
                     prefix, ", ".join(wall_keys), definition.get("category")
                 )
             )

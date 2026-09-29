@@ -110,8 +110,8 @@ def write_view_identity(legend_view, payload, doc):
             _write_json_registry(doc, legend_view, payload)
         except Exception as json_error:
             raise LegendOperationError(
-                "The legend identity could not be stored. Extensible Storage failed ({0}). "
-                "The local JSON fallback also failed ({1}).".format(storage_error, json_error)
+                "Could not save the legend's link to its view, neither in the model ({0}) nor in "
+                "a local file ({1}).".format(storage_error, json_error)
             )
         payload["storage"] = "json_registry"
         return "json_registry"
@@ -129,7 +129,7 @@ def write_element_identity(element, payload):
         _write_entity(element, ELEMENT_SCHEMA_GUID, ELEMENT_SCHEMA_NAME, "Generated legend element.", payload)
     except Exception as ex:
         raise LegendOperationError(
-            "Could not mark a generated element as tool-managed, so it was not left in the legend. {0}".format(ex)
+            "Could not tag a new legend element as made by this tool, so it was not kept. {0}".format(ex)
         )
 
 
@@ -172,7 +172,7 @@ ROLE_LIBRARY_LEGEND = "library_legend"
 
 
 def iter_generated_legends(doc, role=ROLE_VIEW_LEGEND):
-    """Yield (view, payload) for tool-managed legends of one role.
+    """Yield (view, payload) for legends of one role made by this tool.
 
     ``generated_legend`` is the view/sheet type legend. ``library_legend`` is built
     from the category symbol families. Pass role=None for both.
@@ -237,7 +237,7 @@ def build_library_element_payload(category, code, role):
 
 
 def collect_managed_elements(doc, legend_view):
-    """Return tool-managed elements owned by the legend view."""
+    """Return elements made by this tool owned by the legend view."""
     from version_adapter import element_id_value, get_db
     DB = get_db()
     view_id = element_id_value(legend_view.Id)
@@ -278,7 +278,7 @@ def collect_managed_elements(doc, legend_view):
 
 
 def delete_managed_elements(doc, elements):
-    """Delete elements after proving each one is tool-managed."""
+    """Delete elements after checking each one was made by this tool."""
     from System.Collections.Generic import List
     from version_adapter import get_db
     DB = get_db()
@@ -287,7 +287,7 @@ def delete_managed_elements(doc, elements):
         payload = read_element_payload(element)
         if not payload:
             raise LegendOperationError(
-                "Refusing to delete element {0}. It is not marked as tool-managed legend content.".format(
+                "Element {0} was not made by this tool, so it was not deleted.".format(
                     element.Id
                 )
             )
@@ -306,8 +306,8 @@ def try_write_configured_parameter(legend_view, parameter_name, source_view_id, 
     parameter = legend_view.LookupParameter(parameter_name)
     if parameter is None or parameter.IsReadOnly:
         return (
-            "View parameter '{0}' was not found or is read-only. "
-            "Identity is stored with Extensible Storage. The tool did not create a project parameter.".format(
+            "View parameter '{0}' is missing or read-only, so it was not filled in. "
+            "The legend still keeps its link to the view.".format(
                 parameter_name
             )
         )

@@ -96,7 +96,7 @@ class DialogTests(unittest.TestCase):
 
     def test_rows_show_details(self):
         rows = self.dialogs.row_labels(["Validate", "Choose", "Open"], ["check the file", None])
-        self.assertEqual(rows, ["Validate  —  check the file", "Choose", "Open"])
+        self.assertEqual(rows, ["Validate - check the file", "Choose", "Open"])
         self.assertEqual(self.dialogs.row_labels(["A"]), ["A"])
 
     def test_every_settings_action_has_a_detail(self):
@@ -107,7 +107,7 @@ class DialogTests(unittest.TestCase):
     def test_settings_actions_round_trip(self):
         from unittest import mock
         import ui_service
-        self.assertEqual(ui_service.SETTINGS_ACTIONS[0], "Choose legend text style")
+        self.assertEqual(ui_service.SETTINGS_ACTIONS[0], "Legend text style")
         self.assertNotIn("Link master legends", ui_service.SETTINGS_ACTIONS)
         for index, name in enumerate(ui_service.SETTINGS_ACTIONS):
             with mock.patch.object(self.dialogs, "choose_from_list", return_value=index):

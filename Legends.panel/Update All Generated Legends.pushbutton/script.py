@@ -1,12 +1,12 @@
 #! python3
 # -*- coding: utf-8 -*-
-"""Update every tool-managed legend whose visible types have changed.
+"""Update every legend made by this tool when its visible types have changed.
 
 Requires the pyRevit CPython 3 engine. IronPython is not supported.
 """
 
 __title__ = "Update All\nGenerated Legends"
-__doc__ = "Update tool-managed legends whose source views still exist."
+__doc__ = "Update all legends made by this tool."
 __author__ = "Place Resource"
 
 import os
@@ -42,9 +42,8 @@ def _find_lib():
                     del sys.modules[name]
             return lib
     raise ImportError(
-        "Place Resource lib folder was not found. Copy 'lib' and 'config' to "
-        "Documents\\Gensler\\Python\\PlaceResource, or set PLACE_RESOURCE_HOME to the folder that "
-        "contains them. Checked: " + "; ".join(os.path.abspath(item) for item in candidates if item)
+        "PlaceResource folder not found. Copy lib and config to "
+        "Documents\\Gensler\\Python\\PlaceResource, or set PLACE_RESOURCE_HOME. Looked in: " + "; ".join(os.path.abspath(item) for item in candidates if item)
     )
 
 
@@ -75,13 +74,13 @@ def main():
     legends = list(iter_generated_legends(doc))
     library_legends = list(iter_generated_legends(doc, ROLE_LIBRARY_LEGEND))
     if not legends and not library_legends:
-        raise LegendToolError("This model has no tool-managed legends to update.")
+        raise LegendToolError("No legends made by this tool in this model.")
     accepted = ask_yes_no(
         "Update All Generated Legends",
-        "Update {0} type legend(s) and {1} library legend(s)?".format(len(legends), len(library_legends)),
-        content="Legends whose content is unchanged are skipped. Viewport positions are preserved. "
-                "Deleted source views and sheets are reported and skipped. Library legends are rebuilt "
-                "from their stored rows and the current symbol families.",
+        "Update {0} type legends and {1} library legends?".format(len(legends), len(library_legends)),
+        content="Unchanged legends are skipped. Viewports stay where they are. "
+                "Legends whose view or sheet was deleted are listed and skipped. "
+                "Library legends are rebuilt from the current symbol families.",
         yes_label="Update the legends",
         no_label="Cancel",
     )
@@ -94,9 +93,9 @@ def main():
         allow_delete = True
         if _any_definition_confirms(settings):
             allow_delete = ask_yes_no(
-                "Remove obsolete legend entries",
-                "Remove managed entries for types that are no longer visible?",
-                content="Manual notes and unmanaged annotation are not deleted.",
+                "Remove old legend rows",
+                "Remove rows for types that are no longer visible?",
+                content="Notes you added by hand are never removed.",
                 yes_label="Remove them",
                 no_label="Keep them",
             )
@@ -114,8 +113,8 @@ def main():
     if failed:
         alert_error(
             "Update All Generated Legends",
-            "{0} legend(s) failed. The output window lists the errors. "
-            "Successful legends were kept.".format(failed),
+            "{0} legends failed, see the output window. "
+            "The others were updated.".format(failed),
         )
 
 
@@ -145,4 +144,4 @@ if __name__ == "__main__":
         alert_error("Update All Generated Legends", str(error))
     except Exception as error:
         LOGGER.exception("Update All Generated Legends failed")
-        alert_error("Update All Generated Legends", "Unexpected failure: {0}".format(error))
+        alert_error("Update All Generated Legends", "Something went wrong: {0}".format(error))

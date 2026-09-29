@@ -191,7 +191,7 @@ class SettingsTests(unittest.TestCase):
     def test_old_excel_schema_is_rejected_with_a_hint(self):
         with self.assertRaises(ConfigurationError) as caught:
             L.validate_settings({"schema_version": "1.0", "categories": [{"name": "Walls"}]})
-        self.assertIn("replaced by symbol families", str(caught.exception))
+        self.assertIn("old Excel library", str(caught.exception))
 
     def test_invalid_settings_are_rejected(self):
         with open(CONFIG, encoding="utf-8") as handle:
@@ -221,7 +221,7 @@ class FamilyEntryTests(unittest.TestCase):
         self.assertEqual(problems, [])
         self.assertEqual([entry.code for entry in entries], ["IWS-9", "IWS-105", "IWS-110"])
         self.assertEqual(entries[1].description, "Metal stud")
-        self.assertEqual(entries[1].label(), "IWS-105  —  Metal stud")
+        self.assertEqual(entries[1].label(), "IWS-105 - Metal stud")
         self.assertEqual(entries[0].label(), "IWS-9")
         self.assertEqual(entries[1].symbol_unique_id, "u11")
 
@@ -235,7 +235,7 @@ class FamilyEntryTests(unittest.TestCase):
         patch, _db = _patched(doc)
         with patch:
             _entries, problems = symbol_library.family_entries(doc, _config())
-        self.assertIn("Use a Generic Annotation family", problems[0])
+        self.assertIn("has to be a Generic Annotation", problems[0])
 
     def test_family_name_match_ignores_case(self):
         doc = _model()
@@ -275,7 +275,7 @@ class PrepareTests(unittest.TestCase):
         entries = [L.LibraryEntry("IWS-105"), L.LibraryEntry("IWS-999")]
         resolved = self._prepare(entries, {"IWS-105": "s1"}, text_error=True, template_error=True)
         problems = "\n".join(resolved["problems"])
-        self.assertIn("no type named: IWS-999", problems)
+        self.assertIn("no type called IWS-999", problems)
         self.assertIn("Text note type", problems)
         self.assertIn("Template legend", problems)
 

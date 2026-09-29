@@ -18,11 +18,30 @@ from errors import LegendOperationError
 
 
 class ProjectSettingsTests(unittest.TestCase):
-    def test_normalize_keeps_only_text_type(self):
-        data = project_settings.normalize({"text_type": "  2.5mm Arial ", "masters": {"Walls": "abc"}})
-        self.assertEqual(data, {"text_type": "2.5mm Arial"})
-        self.assertEqual(project_settings.normalize(None), {"text_type": None})
+    def test_normalize_keeps_text_type_and_families(self):
+        data = project_settings.normalize({
+            "text_type": "  2.5mm Arial ",
+            "masters": {"Walls": "abc"},
+            "families": {"Walls": " Office Wall Symbols ", "Doors": "", "Floors": 3},
+        })
+        self.assertEqual(data, {"text_type": "2.5mm Arial", "families": {"Walls": "Office Wall Symbols"}})
+        self.assertEqual(project_settings.normalize(None), {"text_type": None, "families": {}})
         self.assertIn("not set", project_settings.describe({}))
+
+
+class FamilyAssignmentTests(unittest.TestCase):
+    def test_picked_family_replaces_default_name(self):
+        from collections import OrderedDict
+        from legend_library import with_families
+        settings = {"categories": OrderedDict([
+            ("Walls", {"name": "Walls", "family_name": "PR Legend - Walls"}),
+            ("Doors", {"name": "Doors", "family_name": "PR Legend - Doors"}),
+        ])}
+        result = with_families(settings, {"Walls": "Office Wall Symbols"})
+        self.assertEqual(result["categories"]["Walls"]["family_name"], "Office Wall Symbols")
+        self.assertEqual(result["categories"]["Doors"]["family_name"], "PR Legend - Doors")
+        self.assertEqual(settings["categories"]["Walls"]["family_name"], "PR Legend - Walls")
+        self.assertEqual(list(result["categories"]), ["Walls", "Doors"])
 
 
 class TextStyleTests(unittest.TestCase):

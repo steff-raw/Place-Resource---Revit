@@ -16,7 +16,7 @@ The `offline-security` skill applies: no web lookups for this project.
 | File | Covers |
 | --- | --- |
 | `references/api-reference.md` | Classes and members by area, with return types and pyRevit (pythonnet) usage |
-| `references/version-changes.md` | What was renamed or removed per version (2021–2026) |
+| `references/version-changes.md` | What was renamed or removed per version (2021 to 2026) |
 
 Read only the section you need.
 

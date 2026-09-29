@@ -36,7 +36,7 @@ Run the local checker from the repo root:
 python .claude/skills/offline-security/scripts/check_offline.py
 ```
 
-It scans the deployed folders for rules 1–6 and 10, and exits 1 on any finding. The unit test `PlaceResource/tests/test_offline.py` runs the same scan, so `python -m unittest discover -s tests` from `PlaceResource` fails too. Rules 7–9 need a manual read of the diff.
+It scans the deployed folders for rules 1 to 6 and 10, and exits 1 on any finding. The unit test `PlaceResource/tests/test_offline.py` runs the same scan, so `python -m unittest discover -s tests` from `PlaceResource` fails too. Rules 7 to 9 need a manual read of the diff.
 
 Never weaken the checker or skip its test to get a change through. If a finding is a false positive, rewrite the code so it doesn't match.
 

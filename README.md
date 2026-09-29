@@ -71,7 +71,7 @@ Shift-click **Legend Settings** to pick a different JSON file for the project. T
 
 ## Legend text style
 
-Open **Place Resources → Settings → Choose legend text style** and pick any text note type in the project. The choice is saved in the Revit model, so each project keeps its own.
+Open **Place Resources > Settings > Choose legend text style** and pick any text note type in the project. The choice is saved in the Revit model, so each project keeps its own.
 
 - It is used for the text the tool writes itself: type-legend labels and headers, and library legend headings.
 - Without a saved style, the names in the settings files are used (`2.5mm Arial` by default).
@@ -87,7 +87,7 @@ The library lives in Revit as **one Generic Annotation family per category**, fo
 
 ### Make the legend family (by hand, once per category)
 
-1. **New family:** Generic Annotation (Metric). Name it `PR Legend - <Category>`, e.g. `PR Legend - Walls`, or set `family_name` in `library_legends.json` to your own name.
+1. **New family:** Generic Annotation or Detail Item. Any name. You pick it per category in Legend Setup.
 2. **One type per code:** the type name must be the Type Mark exactly, e.g. `IWS-105`. This is how the tool finds the type for a Type Mark.
 3. **`Description`:** add a type text parameter called `Description` with a label. The tool shows it in the tick lists; use `description_parameter` for a different name.
 4. **Graphic:** draw the hatch or graphic per type any way you like, e.g. filled regions switched on and off by Yes/No type parameters.
@@ -95,9 +95,10 @@ The library lives in Revit as **one Generic Annotation family per category**, fo
 
 ### Legend Setup
 
-1. Run **Place Resources → Legend Setup** and choose a category. The list shows each category's family and how many types it has.
-2. Tick the types. A new legend starts with all ticked; an existing one starts with its current rows.
-3. Confirm. The legend `<Category> LEGEND` is created or updated: one symbol per type, stacked, under a heading in your text style.
+1. Run **Place Resources > Legend Setup** and choose a category. The list shows each category's family and how many types it has.
+2. Pick the symbol family for that category from the families loaded in the model. The pick is saved in the model, so each project can use its own family.
+3. Tick the types. A new legend starts with all ticked; an existing one starts with its current rows.
+4. Confirm. The legend `<Category> LEGEND` is created or updated: one symbol per type, stacked, under a heading in your text style.
 
 ### Place Legend on Sheet (library legends)
 
@@ -118,7 +119,7 @@ Library legends made by earlier versions (Excel or master legends) are rebuilt w
 
 Per category, with shared `defaults`:
 
-- `family_name` (default `PR Legend - {category}`) and `description_parameter`
+- `family_name` (default `PR Legend - {category}`, used until a family is picked in Legend Setup) and `description_parameter`
 - `revit_category` (for Type Mark matching; `null` for zone categories) and `source_view_types`
 - `template_legend_name`, the name patterns and `scale`
 - `styles.heading_text_type` / `show_heading`, and `layout.row_gap_mm` / `heading_gap_mm`
@@ -148,7 +149,7 @@ The tool never modifies the template view. It duplicates it, renames the duplica
 ### Create / Update View Legend
 
 1. Open a floor plan, ceiling plan, section, or elevation, **or a sheet**.
-2. Run **Place Resources → Create / Update View Legend**.
+2. Run **Place Resources > Create / Update View Legend**.
 3. Choose Wall Type Legend, Fire-Rated Wall Legend, Acoustic Wall Legend, or Door Type Legend.
 4. Read the preview in the output window. It lists visible instances, unique types, exclusions, and an estimated size taken from the JSON spacing.
 5. Pick **Create or update the legend**, **Create or update, then place it on a sheet**, or **Preview only** to leave the model unchanged.
@@ -253,7 +254,7 @@ The dialog's size is an estimate from the JSON, calculated before the transactio
 - Modify a model wall, door, floor, or other model instance.
 - Change a type's parameters.
 - Delete annotation that this tool did not mark.
-- Delete a legend that is not tool-managed.
+- Delete a legend it did not make.
 - Change the source view's filters, visibility, phase, or design option.
 - Replace a legend component with detail lines unless `fallback_detail_lines` is true.
 - Suppress Revit warnings. Warnings are copied into the report and left for Revit to handle.
@@ -344,7 +345,7 @@ Run these on a copy of a project. Record the Revit and pyRevit versions in the t
 
 Text style and library families:
 
-- [ ] Settings → Choose legend text style, then Create/Update View Legend works in a project without `2.5mm Arial`.
+- [ ] Settings > Choose legend text style, then Create/Update View Legend works in a project without `2.5mm Arial`.
 - [ ] Load `PR Legend - Walls` (types IWS-105, IWS-110). Legend Setup lists them with their Description.
 - [ ] Edit the family (hatch or description) and reload it: existing legends show the change without running the tool.
 - [ ] A family that is not a Generic Annotation (or Detail Item) family is refused with a clear message.

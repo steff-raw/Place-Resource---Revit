@@ -53,7 +53,7 @@ class LibraryEntry(object):
     def label(self):
         """Text shown in selection lists."""
         if self.description:
-            return "{0}  —  {1}".format(self.code, self.description)
+            return "{0} - {1}".format(self.code, self.description)
         return self.code
 
     def as_hash_record(self):
@@ -86,10 +86,10 @@ def validate_settings(data, label="library_legends.json"):
     if version != SUPPORTED_SCHEMA:
         hint = ""
         if version == "1.0":
-            hint = (" Version 1.0 used the Excel library, which was replaced by symbol families. "
-                    "Replace the file with the library_legends.json shipped with the tool.")
+            hint = (" Version 1.0 was for the old Excel library. Use the library_legends.json "
+                    "that comes with the tool.")
         raise ConfigurationError(
-            "{0} schema_version '{1}' is not supported. This build reads {2}.{3}".format(
+            "{0}: schema_version '{1}' is not supported. This version reads {2}.{3}".format(
                 label, version, SUPPORTED_SCHEMA, hint
             )
         )
@@ -116,6 +116,23 @@ def validate_settings(data, label="library_legends.json"):
         merged["family_name"] = merged["family_name"].replace("{category}", name).strip()
         categories[name] = merged
     return categories
+
+
+def with_families(library_settings, assignments):
+    """Return a copy of the settings where each category uses the family picked for it in the model.
+
+    Categories without a pick keep family_name from library_legends.json.
+    """
+    categories = OrderedDict()
+    for name, config in library_settings["categories"].items():
+        config = dict(config)
+        family = (assignments or {}).get(name)
+        if family:
+            config["family_name"] = family
+        categories[name] = config
+    result = dict(library_settings)
+    result["categories"] = categories
+    return result
 
 
 def entries_for_codes(entries, codes):

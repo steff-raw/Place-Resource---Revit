@@ -1,5 +1,5 @@
 title: "Audit Generated\nLegends"
 tooltip: >
-  Compare each generated legend with the types visible in its source view.
+  Check each legend against the types visible in its view. Changes nothing.
 author: Place Resource
 context: doc-project

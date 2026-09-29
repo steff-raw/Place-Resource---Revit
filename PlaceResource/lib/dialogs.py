@@ -82,14 +82,14 @@ def scaled(value, factor):
 
 
 def row_labels(labels, details=None):
-    """Join each label with its detail text, if any: 'Label  —  detail'."""
+    """Join each label with its detail text, if any: 'Label - detail'."""
     rows = []
     details = list(details or [])
     for index, label in enumerate(labels):
         text = str(label)
         detail = details[index] if index < len(details) else None
         if detail:
-            text = "{0}  —  {1}".format(text, detail)
+            text = "{0} - {1}".format(text, detail)
         rows.append(text)
     return rows
 

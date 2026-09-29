@@ -45,9 +45,8 @@ def _find_lib():
                     del sys.modules[name]
             return lib
     raise ImportError(
-        "Place Resource lib folder was not found. Copy 'lib' and 'config' to "
-        "Documents\\Gensler\\Python\\PlaceResource, or set PLACE_RESOURCE_HOME to the folder that "
-        "contains them. Checked: " + "; ".join(os.path.abspath(item) for item in candidates if item)
+        "PlaceResource folder not found. Copy lib and config to "
+        "Documents\\Gensler\\Python\\PlaceResource, or set PLACE_RESOURCE_HOME. Looked in: " + "; ".join(os.path.abspath(item) for item in candidates if item)
     )
 
 
@@ -249,4 +248,4 @@ if __name__ == "__main__":
         alert_error("Place Legend on Sheet", str(error))
     except Exception as error:
         LOGGER.exception("Place Legend on Sheet failed")
-        alert_error("Place Legend on Sheet", "Unexpected failure: {0}".format(error))
+        alert_error("Place Legend on Sheet", "Something went wrong: {0}".format(error))

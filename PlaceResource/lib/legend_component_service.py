@@ -55,19 +55,18 @@ class LegendComponentService(object):
         seed_type = self.doc.GetElement(seed_type_id) if seed_type_id is not None else None
         if seed_type is None or type_element is None:
             raise LegendOperationError(
-                "The seed legend component has no component type. "
-                "Open the template legend and set its Component Type before running the tool."
+                "The legend component in the template has no type set. "
+                "Open the template legend and set its Component."
             )
         seed_category = getattr(seed_type, "Category", None)
         type_category = getattr(type_element, "Category", None)
         if seed_category is None or type_category is None:
-            raise LegendOperationError("Could not compare the seed component category with the target type.")
+            raise LegendOperationError("Could not check the category of the template's legend component.")
         from version_adapter import element_id_value
         if element_id_value(seed_category.Id) != element_id_value(type_category.Id):
             raise LegendOperationError(
-                "The template seed is a {0} component, but the legend definition needs {1}. "
-                "Place a seed of the correct category in the template legend. "
-                "The tool will not draw a substitute.".format(seed_category.Name, type_category.Name)
+                "The legend component in the template is a {0}, but this legend needs {1}. "
+                "Put a {1} legend component in the template legend.".format(seed_category.Name, type_category.Name)
             )
 
     def copy_component(self, seed, offset_index):
@@ -80,15 +79,14 @@ class LegendComponentService(object):
             copied = DB.ElementTransformUtils.CopyElement(self.doc, seed.Id, offset)
         except Exception as ex:
             raise UnsupportedRevitOperationError(
-                "Revit could not copy the seed legend component. "
-                "Confirm the template legend contains one legend component and that this Revit "
-                "version allows ElementTransformUtils.CopyElement for legend components. {0}".format(ex)
+                "Revit could not copy the legend component. Check the template legend has one "
+                "legend component. {0}".format(ex)
             )
         new_ids = list(copied) if copied is not None else []
         element = self.doc.GetElement(new_ids[0]) if new_ids else None
         if element is None:
             raise UnsupportedRevitOperationError(
-                "Revit copied a legend component but did not return the new element."
+                "Revit copied the legend component but did not return the copy."
             )
         return element
 
@@ -99,31 +97,29 @@ class LegendComponentService(object):
         parameter = self._component_parameter(component)
         if parameter is None:
             raise UnsupportedRevitOperationError(
-                "This Revit version has no LEGEND_COMPONENT parameter on legend components. "
-                "The seed component could not be retargeted."
+                "This Revit version doesn't let the legend component type be changed."
             )
         if parameter.IsReadOnly:
             raise UnsupportedRevitOperationError(
-                "The legend component type parameter is read-only in this Revit version. "
-                "The tool did not replace the component with detail lines."
+                "The legend component type is read-only in this Revit version."
             )
         try:
             wrote = parameter.Set(type_element.Id)
         except Exception as ex:
             raise UnsupportedRevitOperationError(
-                "Revit rejected the legend component type change for '{0}'. {1}".format(
+                "Revit would not set the legend component to '{0}'. {1}".format(
                     _element_name(type_element), ex
                 )
             )
         if wrote is False:
             raise UnsupportedRevitOperationError(
-                "Revit did not accept type '{0}' on the legend component.".format(_element_name(type_element))
+                "Revit would not set the legend component to '{0}'.".format(_element_name(type_element))
             )
         current = parameter.AsElementId()
         if element_id_value(current) != element_id_value(type_element.Id):
             raise UnsupportedRevitOperationError(
-                "Revit rejected the legend component type change. Requested '{0}' ({1}) "
-                "but the component still reports type id {2}.".format(
+                "Revit would not set the legend component to '{0}' ({1}). "
+                "It still shows type id {2}.".format(
                     _element_name(type_element),
                     element_id_value(type_element.Id),
                     element_id_value(current),
@@ -166,12 +162,12 @@ class LegendComponentService(object):
         from version_adapter import get_db
         DB = get_db()
         self._assert_text_type(text_type_id)
-        content = text if text else "–"
+        content = text if text else "-"
         try:
             note = DB.TextNote.Create(self.doc, self.legend_view.Id, position, content, text_type_id)
         except Exception as ex:
             raise LegendOperationError(
-                "Could not create legend text '{0}'. Confirm the text note type exists and the view is editable. {1}".format(
+                "Could not add the text '{0}' to the legend. {1}".format(
                     content, ex
                 )
             )
@@ -188,7 +184,7 @@ class LegendComponentService(object):
 
     def set_text(self, note, text):
         """Update a managed text note."""
-        content = text if text else "–"
+        content = text if text else "-"
         try:
             if note.Text != content:
                 note.Text = content
@@ -210,18 +206,18 @@ class LegendComponentService(object):
         except Exception:
             structure = None
         if structure is None:
-            return [], ["Type '{0}' has no compound structure, so layer reference planes were skipped.".format(
+            return [], ["Type '{0}' has no layers, so no layer planes were added.".format(
                 _element_name(type_element)
             )]
         try:
             layers = list(structure.GetLayers())
         except Exception as ex:
-            return [], ["Compound structure layers could not be read. {0}".format(ex)]
+            return [], ["The wall layers could not be read. {0}".format(ex)]
         if not layers:
             return [], ["Type '{0}' has no layers.".format(_element_name(type_element))]
         bbox = component.get_BoundingBox(self.legend_view)
         if bbox is None:
-            return [], ["The legend component has no bounding box, so layer planes were not created."]
+            return [], ["The legend component has no size yet, so no layer planes were added."]
         structure_width = 0.0
         for layer in layers:
             structure_width += float(layer.Width)
@@ -234,9 +230,8 @@ class LegendComponentService(object):
             axis = "y"
         else:
             return [], [(
-                "Layer reference planes were not created for '{0}'. "
-                "The component bounding box ({1:.1f} mm by {2:.1f} mm) does not match the compound "
-                "structure width ({3:.1f} mm). Confirm the seed view direction and host length.".format(
+                "No layer planes for '{0}': the component is {1:.1f} x {2:.1f} mm but the wall is "
+                "{3:.1f} mm thick. Check the view direction and host length of the template component.".format(
                     _element_name(type_element),
                     width * 304.8,
                     height * 304.8,
@@ -264,16 +259,16 @@ class LegendComponentService(object):
         from version_adapter import get_db
         DB = get_db()
         warnings = [(
-            "fallback_detail_lines is enabled. Layer lines are drafting graphics and are not "
-            "linked to the wall type. The legend component is still the primary representation."
+            "fallback_detail_lines is on. The layer lines are plain detail lines and won't follow "
+            "changes to the wall type."
         )]
         structure = type_element.GetCompoundStructure()
         if structure is None:
-            warnings.append("No compound structure was available for detail lines.")
+            warnings.append("The wall type has no layers, so no layer lines were drawn.")
             return [], warnings
         bbox = component.get_BoundingBox(self.legend_view)
         if bbox is None:
-            warnings.append("No bounding box was available for detail lines.")
+            warnings.append("The legend component has no size yet, so no layer lines were drawn.")
             return [], warnings
         graphics = _line_style(self.doc, line_style)
         created = []
@@ -297,8 +292,8 @@ class LegendComponentService(object):
         graphics = _line_style(self.doc, line_style)
         if graphics is None:
             raise LegendOperationError(
-                "Line style '{0}' was not found. Add it to the model or change styles.line_style "
-                "in the legend settings.".format(line_style)
+                "Line style '{0}' is not in this model. Add it, or change styles.line_style in the "
+                "settings file.".format(line_style)
             )
         left = block["left"] - padding_internal
         right = block["right"] + padding_internal
@@ -342,7 +337,7 @@ class LegendComponentService(object):
         measured = self.measure(element)
         if measured is None:
             raise LegendOperationError(
-                "Element {0} has no bounding box in the legend, so it could not be aligned.".format(element.Id)
+                "Element {0} has no size in the legend, so it could not be lined up.".format(element.Id)
             )
         delta = DB.XYZ(target_x - measured["min_x"], target_y - measured["max_y"], 0)
         if abs(delta.X) < 1e-9 and abs(delta.Y) < 1e-9:
@@ -355,8 +350,8 @@ class LegendComponentService(object):
         parameter = self._view_parameter(component)
         if parameter is None:
             return [(
-                "View direction '{0}' was not applied. This Revit version has no writable "
-                "LEGEND_COMPONENT_VIEW parameter. The seed component direction was kept.".format(configured)
+                "View direction '{0}' was not applied. Set it on the legend component in the "
+                "template.".format(configured)
             )]
         try:
             current_text = (parameter.AsValueString() or "").strip().lower()
@@ -366,9 +361,8 @@ class LegendComponentService(object):
         if current_text and any(token in current_text or current_text in token for token in accepted):
             return []
         return [(
-            "View direction '{0}' was not changed. The seed component reports '{1}'. "
-            "The public API does not document a stable integer for legend view direction, "
-            "so the tool keeps the seed value. Set the seed component to the required direction.".format(
+            "The legend component in the template shows '{1}', not '{0}'. Set its view direction "
+            "in the template legend.".format(
                 configured, parameter.AsValueString() if current_text else "an unreadable value"
             )
         )]
@@ -379,8 +373,8 @@ class LegendComponentService(object):
         parameter = self._length_parameter(component)
         if parameter is None or parameter.IsReadOnly:
             return [(
-                "Host length {0} mm was not applied. No writable length parameter was found on the "
-                "legend component. The seed component length was kept.".format(host_length_mm)
+                "Host length {0} mm was not applied. Set it on the legend component in the "
+                "template.".format(host_length_mm)
             )]
         target = mm_to_internal(host_length_mm)
         try:
@@ -390,7 +384,7 @@ class LegendComponentService(object):
             return ["Host length could not be set on the legend component. {0}".format(ex)]
         if abs(current - target) > mm_to_internal(1):
             return [(
-                "Host length was requested as {0} mm but the component reports {1:.1f} mm after the write.".format(
+                "Host length was set to {0} mm but the component shows {1:.1f} mm.".format(
                     host_length_mm, current * 304.8
                 )
             )]
@@ -449,7 +443,7 @@ class LegendComponentService(object):
         for built_in in forbidden:
             if current == category_id_value(built_in):
                 raise LegendOperationError(
-                    "Refusing to modify element {0} because it is model category {1}.".format(
+                    "Element {0} is a {1} in the model and was not changed.".format(
                         element.Id, category.Name
                     )
                 )
@@ -458,7 +452,7 @@ class LegendComponentService(object):
         text_type = self.doc.GetElement(text_type_id)
         if text_type is None:
             raise LegendOperationError(
-                "The text note type could not be found. Check styles.text_note_type in the settings file."
+                "The text type was not found. Choose one in Place Resources > Settings."
             )
 
     def _create_plane(self, db_module, bbox, axis, offset):
@@ -476,8 +470,8 @@ class LegendComponentService(object):
             return self.doc.Create.NewReferencePlane(bubble, free, cut, self.legend_view)
         except Exception as ex:
             raise UnsupportedRevitOperationError(
-                "Revit could not create a layer reference plane in the legend. "
-                "Layer dimensions were rolled back. The legend component was kept. {0}".format(ex)
+                "Revit could not add a layer reference plane. The layer planes were undone and the "
+                "legend component kept. {0}".format(ex)
             )
 
     def _create_dimension(self, db_module, bbox, axis, planes, structure_width):
@@ -489,7 +483,7 @@ class LegendComponentService(object):
                 references.Append(plane.GetReference())
             except Exception as ex:
                 raise UnsupportedRevitOperationError(
-                    "A layer reference plane did not provide a dimension reference. {0}".format(ex)
+                    "A layer plane could not be dimensioned. {0}".format(ex)
                 )
         if axis == "x":
             y_pos = bbox.Min.Y - mm_to_internal(5)
@@ -504,7 +498,7 @@ class LegendComponentService(object):
             return self.doc.Create.NewDimension(self.legend_view, line, references)
         except Exception as ex:
             raise UnsupportedRevitOperationError(
-                "Revit could not create layer dimensions in the legend. {0}".format(ex)
+                "Revit could not add the layer dimensions. {0}".format(ex)
             )
 
 
@@ -523,12 +517,12 @@ def find_template_legend(doc, template_name):
             continue
     if not matches:
         raise LegendOperationError(
-            "Template legend '{0}' was not found. Create a normal legend view with that exact name "
-            "and place one seed legend component in it. Do not use a Revit view template.".format(template_name)
+            "Legend '{0}' was not found. Make a legend view with that exact name and put one legend "
+            "component in it. (This is a legend view, not a view template.)".format(template_name)
         )
     if len(matches) > 1:
         raise LegendOperationError(
-            "More than one legend is named '{0}'. Rename the extras so the template name is unique.".format(
+            "More than one legend is called '{0}'. Rename the others.".format(
                 template_name
             )
         )
@@ -592,8 +586,8 @@ def find_text_type(doc, type_name):
             continue
     available = ", ".join(sorted(item.Name for item in found)[:20]) or "(none)"
     raise LegendOperationError(
-        "Text note type '{0}' was not found. Choose the legend text style in Place Resources > Settings, "
-        "or create the type in the project. Available types include: {1}.".format(type_name, available)
+        "Text type '{0}' is not in this project. Choose one in Place Resources > Settings. "
+        "Text types in the project: {1}.".format(type_name, available)
     )
 
 

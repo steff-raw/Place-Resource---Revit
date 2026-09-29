@@ -60,7 +60,7 @@ def prepare(doc, config, entries, need_template):
     missing = [entry.code for entry in entries if entry.code not in resolved["symbols"]]
     if missing:
         problems.append(
-            "Family '{0}' has no type named: {1}. Reload the family or refresh the list.".format(
+            "Family '{0}' has no type called {1}. Reload the family and try again.".format(
                 config["family_name"], ", ".join(missing)
             )
         )
@@ -97,7 +97,7 @@ def build_library_legend(doc, config, entries, sheet=None, legend_view=None):
     }
     if not entries:
         report["status"] = "skipped"
-        report["warnings"].append("No rows were selected, so the legend was not changed.")
+        report["warnings"].append("No rows were ticked, so the legend was not changed.")
         return report
     resolved = prepare(doc, config, entries, need_template=existing is None)
     if resolved["problems"]:
@@ -108,12 +108,12 @@ def build_library_legend(doc, config, entries, sheet=None, legend_view=None):
         view = _run(doc, config, entries, sheet, existing, resolved, report)
     except LegendToolError as ex:
         report["errors"].append(str(ex))
-        report["errors"].append("The change was rolled back. The model was not left partly updated.")
+        report["errors"].append("The change was undone. The model is as it was before.")
         return report
     except Exception as ex:
         LOGGER.exception("Library legend failed")
-        report["errors"].append("Unexpected failure: {0}".format(ex))
-        report["errors"].append("The change was rolled back.")
+        report["errors"].append("Something went wrong: {0}".format(ex))
+        report["errors"].append("The change was undone.")
         return report
     report["status"] = "created" if existing is None else "updated"
     report["legend_view_id"] = element_id_value(view.Id)
@@ -121,8 +121,20 @@ def build_library_legend(doc, config, entries, sheet=None, legend_view=None):
     return report
 
 
+def project_library(doc, library_settings):
+    """Apply the symbol families picked for this model to the library settings."""
+    from legend_library import with_families
+    from project_settings import family_assignments
+    try:
+        assignments = family_assignments(doc)
+    except Exception:
+        assignments = {}
+    return with_families(library_settings, assignments)
+
+
 def update_all_library(doc, library_settings):
     """Rebuild library legends whose rows changed. Graphic changes come from the family itself."""
+    library_settings = project_library(doc, library_settings)
     summary = {"updated": [], "unchanged": [], "skipped": [], "failed": [], "warnings": []}
     for view, payload in list(iter_generated_legends(doc, ROLE_LIBRARY_LEGEND)):
         category = payload.get("category")
@@ -141,7 +153,7 @@ def update_all_library(doc, library_settings):
         codes = payload.get("codes") or []
         gone = missing_codes(library, codes)
         if gone:
-            summary["warnings"].append("'{0}': type(s) no longer in family '{1}': {2}.".format(
+            summary["warnings"].append("'{0}': types no longer in family '{1}': {2}.".format(
                 view.Name, config["family_name"], ", ".join(gone)
             ))
         entries = entries_for_codes(library, codes)
@@ -157,6 +169,7 @@ def update_all_library(doc, library_settings):
 
 def audit_library(doc, library_settings):
     """Read-only comparison of library legends with their families and the model."""
+    library_settings = project_library(doc, library_settings)
     rows = []
     for view, payload in iter_generated_legends(doc, ROLE_LIBRARY_LEGEND):
         category = payload.get("category")
@@ -219,7 +232,8 @@ def _run(doc, config, entries, sheet, existing, resolved, report):
             payload["family_name"] = config["family_name"]
             if write_view_identity(view, payload, doc) == "json_registry":
                 report["warnings"].append(
-                    "Extensible Storage was unavailable. A local JSON registry was written and does not travel with the model."
+                    "Could not save the legend's settings inside the model. They were saved in a local file "
+                    "instead, which does not go with the model if it is moved or shared."
                 )
         report["warnings"].extend(transaction.warnings)
 
@@ -259,7 +273,7 @@ def _place_symbol(doc, view, symbol, origin, code):
         return doc.Create.NewFamilyInstance(origin, symbol, view)
     except Exception as ex:
         raise LegendOperationError(
-            "Revit could not place type '{0}' in legend '{1}'. Use a Generic Annotation family. {2}".format(
+            "Revit could not place '{0}' in legend '{1}'. The family must be a Generic Annotation. {2}".format(
                 code, view.Name, ex
             )
         )
@@ -280,7 +294,7 @@ def _arrange(doc, view, config, heading, placed, report):
     for code, instance in placed:
         measured = service.measure(instance)
         if measured is None:
-            report["warnings"].append("Type '{0}' has no visible graphics in the legend.".format(code))
+            report["warnings"].append("'{0}' shows nothing in the legend. Check the family type.".format(code))
             heights.append(0.0)
         else:
             heights.append(measured["height"])
@@ -297,7 +311,7 @@ def _new_legend(doc, template, config, sheet, report):
         new_id = template.Duplicate(DB.ViewDuplicateOption.Duplicate)
     except Exception as ex:
         raise LegendOperationError(
-            "Revit could not duplicate template legend '{0}' as an empty legend. {1}".format(template.Name, ex)
+            "Revit could not copy the template legend '{0}'. {1}".format(template.Name, ex)
         )
     view = doc.GetElement(new_id)
     if view is None:
@@ -308,7 +322,7 @@ def _new_legend(doc, template, config, sheet, report):
         view.Scale = int(config["scale"])
     except Exception as ex:
         report["warnings"].append("The legend scale could not be set to 1:{0}. {1}".format(config["scale"], ex))
-    report["notices"].append("New legend '{0}' duplicated from '{1}'.".format(view.Name, template.Name))
+    report["notices"].append("New legend '{0}' made from '{1}'.".format(view.Name, template.Name))
     return view
 
 

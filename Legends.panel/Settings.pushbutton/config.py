@@ -38,9 +38,8 @@ def _find_lib():
                     del sys.modules[name]
             return lib
     raise ImportError(
-        "Place Resource lib folder was not found. Copy 'lib' and 'config' to "
-        "Documents\\Gensler\\Python\\PlaceResource, or set PLACE_RESOURCE_HOME to the folder that "
-        "contains them. Checked: " + "; ".join(os.path.abspath(item) for item in candidates if item)
+        "PlaceResource folder not found. Copy lib and config to "
+        "Documents\\Gensler\\Python\\PlaceResource, or set PLACE_RESOURCE_HOME. Looked in: " + "; ".join(os.path.abspath(item) for item in candidates if item)
     )
 
 
@@ -62,7 +61,7 @@ def main():
         alert(str(error), title="Legend Settings")
         return
     set_settings_override(path)
-    alert("Saved legend settings path:\n{0}".format(path), title="Legend Settings")
+    alert("Settings file set to:\n{0}".format(path), title="Legend Settings")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Read-only audit of tool-managed legends. This module does not start a transaction."""
+"""Read-only audit of legends made by this tool. This module does not start a transaction."""
 
 from collections import Counter
 
@@ -19,7 +19,7 @@ def audit_legends(doc, settings):
     for legend_view, payload in iter_generated_legends(doc):
         rows.append(_audit_one(doc, settings, legend_view, payload, definitions))
     if not rows:
-        warnings.append("No tool-managed legends were found in this model.")
+        warnings.append("No legends made by this tool were found in this model.")
     return {"rows": rows, "warnings": warnings}
 
 
@@ -58,16 +58,16 @@ def _audit_one(doc, settings, legend_view, payload, definitions):
     }
     if definition is None:
         row["warnings"].append(
-            "Definition '{0}' is not in the current settings file.".format(definition_id)
+            "Legend type '{0}' is not in the settings file.".format(definition_id)
         )
         return row
     if source is None:
-        row["warnings"].append("The source view was deleted or cannot be resolved.")
+        row["warnings"].append("The view for this legend was deleted.")
         return row
     try:
         collection = collect_visible_types(doc, source, definition, settings["aliases"])
     except Exception as ex:
-        row["warnings"].append("Visible types could not be collected. {0}".format(ex))
+        row["warnings"].append("Could not read the view. {0}".format(ex))
         return row
     visible = [record.type_id for record in collection.types]
     row["visible_type_ids"] = visible
@@ -88,7 +88,7 @@ def _audit_one(doc, settings, legend_view, payload, definitions):
     for element, item in components:
         if not _component_type_matches(element, item.get("type_id")):
             row["warnings"].append(
-                "Managed component {0} does not report the stored type id {1}.".format(
+                "Legend component {0} no longer shows type id {1}.".format(
                     element_id_value(element.Id), item.get("type_id")
                 )
             )
