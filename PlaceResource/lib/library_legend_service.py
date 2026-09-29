@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """Build legends from the category's symbol family.
 
-Each chosen family type (one per code, e.g. IWS-105) is placed once in the
+Each chosen family type (one per Type Mark, e.g. IWS-105) is placed once in the
 legend, stacked top to bottom under an optional heading. The family draws the
-graphic and the description, so editing and reloading the family updates every
-legend without running the tool again.
+graphic. The tool writes the description from the type parameter as a text note
+to the right of the graphic, wrapped to fit the legend width.
 
 Everything is resolved before a transaction starts. The whole change is one
 transaction group. Only elements this tool marked are deleted on update.
@@ -20,15 +20,25 @@ from identity import (
     delete_managed_elements,
     find_library_legend,
     iter_generated_legends,
+    read_view_payload,
     write_element_identity,
     write_view_identity,
 )
 from legend_component_service import LegendComponentService, find_template_legend, resolve_text_type, unique_view_name
-from legend_library import apply_pattern, entries_for_codes, missing_codes, normalize_code, stack_rows
+from legend_library import (
+    apply_pattern,
+    entries_for_codes,
+    format_text,
+    missing_codes,
+    normalize_code,
+    row_heights,
+    stack_rows,
+    text_width_mm,
+)
 from logging_service import get_logger
 from symbol_library import family_entries, symbols_by_code
 from transactions import TransactionContext, TransactionGroupContext
-from units import mm_to_internal
+from units import internal_to_mm, mm_to_internal
 from version_adapter import element_id_value, get_db
 
 LOGGER = get_logger("library_legend_service")
@@ -37,25 +47,32 @@ LOGGER = get_logger("library_legend_service")
 LIBRARY_ROLES = (
     "library_row", "library_heading",
     "library_graphic", "library_title", "library_description", "library_seed",
+    "library_text",
 )
 SOURCE_FAMILY = "family"
 
 
-def library_hash(category, config, entries):
+def legend_width_mm(config, width_mm=None):
+    """The width to build with: the one given, else the default from the settings."""
+    return float(width_mm) if width_mm else float(config["layout"]["width_mm"])
+
+
+def library_hash(category, config, entries, width_mm=None):
     """Hash of what a library legend shows, used to skip unchanged legends."""
     records = [{"type_id": index, "display": {"row": entry.as_hash_record()}} for index, entry in enumerate(entries)]
     return content_hash(
         "library:{0}".format(category),
-        "2.0",
+        "2.1",
         records,
-        {"family": config["family_name"], "layout": config["layout"], "styles": config["styles"]},
+        {"family": config["family_name"], "layout": config["layout"], "styles": config["styles"],
+         "width_mm": legend_width_mm(config, width_mm)},
     )
 
 
 def prepare(doc, config, entries, need_template):
     """Resolve family types, heading text type and template. Nothing in the model changes."""
     problems = []
-    resolved = {"problems": problems, "symbols": {}, "heading_type": None, "template": None}
+    resolved = {"problems": problems, "symbols": {}, "heading_type": None, "text_type": None, "template": None}
     resolved["symbols"] = symbols_by_code(doc, entries)
     missing = [entry.code for entry in entries if entry.code not in resolved["symbols"]]
     if missing:
@@ -69,6 +86,12 @@ def prepare(doc, config, entries, need_template):
             resolved["heading_type"] = resolve_text_type(doc, config["styles"]["heading_text_type"])
         except LegendOperationError as ex:
             problems.append(str(ex))
+    if config["styles"].get("show_text", True):
+        try:
+            resolved["text_type"] = resolve_text_type(doc, config["styles"]["text_type"])
+        except LegendOperationError as ex:
+            if str(ex) not in problems:
+                problems.append(str(ex))
     if need_template:
         try:
             resolved["template"] = find_template_legend(doc, config["template_legend_name"])
@@ -77,10 +100,12 @@ def prepare(doc, config, entries, need_template):
     return resolved
 
 
-def build_library_legend(doc, config, entries, sheet=None, legend_view=None):
+def build_library_legend(doc, config, entries, sheet=None, legend_view=None, width_mm=None):
     """Create or update a library legend. Returns a report dictionary.
 
     ``sheet`` None builds the category legend that is not tied to a sheet.
+    ``width_mm`` is the legend width on paper. None uses the width stored on the
+    legend, then layout.width_mm from the settings.
     """
     category = config["name"]
     existing = legend_view or find_library_legend(doc, category, sheet)
@@ -91,6 +116,7 @@ def build_library_legend(doc, config, entries, sheet=None, legend_view=None):
         "legend_view_id": element_id_value(existing.Id) if existing is not None else None,
         "legend_view_name": existing.Name if existing is not None else None,
         "codes": [entry.code for entry in entries],
+        "width_mm": None,
         "warnings": [],
         "errors": [],
         "notices": [],
@@ -99,13 +125,17 @@ def build_library_legend(doc, config, entries, sheet=None, legend_view=None):
         report["status"] = "skipped"
         report["warnings"].append("No rows were ticked, so the legend was not changed.")
         return report
+    if not width_mm and existing is not None:
+        width_mm = (read_view_payload(existing) or {}).get("width_mm")
+    width_mm = legend_width_mm(config, width_mm)
+    report["width_mm"] = width_mm
     resolved = prepare(doc, config, entries, need_template=existing is None)
     if resolved["problems"]:
         report["errors"].extend(resolved["problems"])
         report["errors"].append("Nothing was changed in the model.")
         return report
     try:
-        view = _run(doc, config, entries, sheet, existing, resolved, report)
+        view = _run(doc, config, entries, sheet, existing, resolved, report, width_mm)
     except LegendToolError as ex:
         report["errors"].append(str(ex))
         report["errors"].append("The change was undone. The model is as it was before.")
@@ -157,10 +187,11 @@ def update_all_library(doc, library_settings):
                 view.Name, config["family_name"], ", ".join(gone)
             ))
         entries = entries_for_codes(library, codes)
-        if payload.get("source") == SOURCE_FAMILY and payload.get("content_hash") == library_hash(category, config, entries):
+        width_mm = payload.get("width_mm")
+        if payload.get("source") == SOURCE_FAMILY and payload.get("content_hash") == library_hash(category, config, entries, width_mm):
             summary["unchanged"].append({"legend": view.Name})
             continue
-        report = build_library_legend(doc, config, entries, sheet=sheet, legend_view=view)
+        report = build_library_legend(doc, config, entries, sheet=sheet, legend_view=view, width_mm=width_mm)
         target = summary["failed"] if report["status"] == "failed" else summary["updated"]
         target.append({"legend": view.Name, "status": report["status"], "errors": report["errors"]})
         summary["warnings"].extend(report["warnings"])
@@ -193,7 +224,7 @@ def audit_library(doc, library_settings):
             "unlisted_marks": [],
             "outdated": config is not None and not problems and (
                 payload.get("source") != SOURCE_FAMILY
-                or payload.get("content_hash") != library_hash(category, config, entries)
+                or payload.get("content_hash") != library_hash(category, config, entries, payload.get("width_mm"))
             ),
             "updated_utc": payload.get("updated_utc"),
         }
@@ -210,7 +241,7 @@ def audit_library(doc, library_settings):
     return rows
 
 
-def _run(doc, config, entries, sheet, existing, resolved, report):
+def _run(doc, config, entries, sheet, existing, resolved, report, width_mm):
     from legend_service import _capture_viewports, _restore_viewports
     DB = get_db()
     category = config["name"]
@@ -227,8 +258,9 @@ def _run(doc, config, entries, sheet, existing, resolved, report):
                           if payload.get("role") in LIBRARY_ROLES]
                 if doomed:
                     delete_managed_elements(doc, doomed)
-            payload = build_library_view_payload(category, codes, sheet, library_hash(category, config, entries))
+            payload = build_library_view_payload(category, codes, sheet, library_hash(category, config, entries, width_mm))
             payload["source"] = SOURCE_FAMILY
+            payload["width_mm"] = width_mm
             payload["family_name"] = config["family_name"]
             if write_view_identity(view, payload, doc) == "json_registry":
                 report["warnings"].append(
@@ -249,12 +281,19 @@ def _run(doc, config, entries, sheet, existing, resolved, report):
                 symbol = resolved["symbols"][entry.code]
                 instance = _place_symbol(doc, view, symbol, origin, entry.code)
                 write_element_identity(instance, build_library_element_payload(category, entry.code, "library_row"))
-                placed.append((entry.code, instance))
+                placed.append((entry, instance))
             doc.Regenerate()
         report["warnings"].extend(transaction.warnings)
 
+        texts = {}
+        with TransactionContext(doc, "Add legend text") as transaction:
+            if resolved["text_type"] is not None:
+                texts = _add_texts(doc, view, config, placed, resolved["text_type"], width_mm, report)
+                doc.Regenerate()
+        report["warnings"].extend(transaction.warnings)
+
         with TransactionContext(doc, "Arrange legend symbols") as transaction:
-            _arrange(doc, view, config, heading, placed, report)
+            _arrange(doc, view, config, heading, placed, texts, report)
             if viewports:
                 _restore_viewports(doc, viewports, report)
             doc.Regenerate()
@@ -279,29 +318,71 @@ def _place_symbol(doc, view, symbol, origin, code):
         )
 
 
-def _arrange(doc, view, config, heading, placed, report):
+def _graphic_column(service, placed):
+    """Width of the widest graphic in view units (0 when none can be measured)."""
+    widths = [measured["width"] for measured in (service.measure(instance) for _entry, instance in placed) if measured]
+    return max(widths) if widths else 0.0
+
+
+def _add_texts(doc, view, config, placed, text_type, width_mm, report):
+    """Write each row's text as a note wrapped to the space left of the legend width. Returns {code: note}."""
+    service = LegendComponentService(doc, view)
+    scale = _scale(view, config)
+    graphic_mm = internal_to_mm(_graphic_column(service, placed) / scale)
+    try:
+        text_mm = text_width_mm(width_mm, graphic_mm, config["layout"]["text_gap_mm"])
+    except ValueError as ex:
+        raise LegendOperationError(str(ex))
+    origin = get_db().XYZ(0, 0, 0)
+    texts = {}
+    empty = []
+    for entry, _instance in placed:
+        text = format_text(config["layout"]["text_pattern"], entry)
+        if not text:
+            empty.append(entry.code)
+            continue
+        # TextNote.Width is on paper, so the width is not multiplied by the view scale.
+        note = service.create_text(origin, text, text_type.Id, mm_to_internal(text_mm))
+        write_element_identity(note, build_library_element_payload(config["name"], entry.code, "library_text"))
+        texts[entry.code] = note
+    if empty:
+        report["warnings"].append(
+            "No text for {0}. Fill in '{1}' on those family types.".format(
+                ", ".join(empty), config["description_parameter"]
+            )
+        )
+    return texts
+
+
+def _arrange(doc, view, config, heading, placed, texts, report):
     service = LegendComponentService(doc, view)
     scale = _scale(view, config)
     row_gap = mm_to_internal(config["layout"]["row_gap_mm"]) * scale
     heading_gap = mm_to_internal(config["layout"]["heading_gap_mm"]) * scale
+    text_x = _graphic_column(service, placed) + mm_to_internal(config["layout"]["text_gap_mm"]) * scale
     heading_height = None
     if heading is not None:
         measured = service.measure(heading)
         heading_height = measured["height"] if measured is not None else 0.0
         if measured is not None:
             service.move_top_left(heading, 0.0, 0.0)
-    heights = []
-    for code, instance in placed:
+    graphic_heights = []
+    text_heights = []
+    for entry, instance in placed:
         measured = service.measure(instance)
         if measured is None:
-            report["warnings"].append("'{0}' shows nothing in the legend. Check the family type.".format(code))
-            heights.append(0.0)
-        else:
-            heights.append(measured["height"])
-    tops, _bottom = stack_rows(heights, row_gap, heading_height, heading_gap)
-    for (code, instance), top in zip(placed, tops):
+            report["warnings"].append("'{0}' shows nothing in the legend. Check the family type.".format(entry.code))
+        graphic_heights.append(measured["height"] if measured is not None else 0.0)
+        note = texts.get(entry.code)
+        measured_text = service.measure(note) if note is not None else None
+        text_heights.append(measured_text["height"] if measured_text is not None else 0.0)
+    tops, _bottom = stack_rows(row_heights(graphic_heights, text_heights), row_gap, heading_height, heading_gap)
+    for (entry, instance), top in zip(placed, tops):
         if service.measure(instance) is not None:
             service.move_top_left(instance, 0.0, top)
+        note = texts.get(entry.code)
+        if note is not None and service.measure(note) is not None:
+            service.move_top_left(note, text_x, top)
 
 
 def _new_legend(doc, template, config, sheet, report):

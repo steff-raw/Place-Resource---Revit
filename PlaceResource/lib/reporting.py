@@ -142,6 +142,7 @@ def print_library_report(report):
         "- Legend: {0}".format(_link(report.get("legend_view_id"), report.get("legend_view_name"))),
         "- Sheet: {0}".format(report.get("sheet") or "none (category legend)"),
         "- Rows: {0}".format(len(report.get("codes") or [])),
+        "- Width: {0}".format("{0:g} cm".format(round(report["width_mm"] / 10.0, 1)) if report.get("width_mm") else "-"),
     ]))
     _print_messages("Codes", report.get("codes") or [])
     _print_messages("Warnings", report.get("warnings") or [])

@@ -203,6 +203,9 @@ class SettingsTests(unittest.TestCase):
         bad = copy.deepcopy(base); bad["defaults"]["styles"]["heading_text_type"] = ""; cases.append(bad)
         bad = copy.deepcopy(base); bad["defaults"]["layout"]["row_gap_mm"] = -1; cases.append(bad)
         bad = copy.deepcopy(base); bad["defaults"]["family_name"] = ""; cases.append(bad)
+        bad = copy.deepcopy(base); bad["defaults"]["styles"]["text_type"] = ""; cases.append(bad)
+        bad = copy.deepcopy(base); bad["defaults"]["layout"]["width_mm"] = 5; cases.append(bad)
+        bad = copy.deepcopy(base); bad["defaults"]["layout"]["text_pattern"] = None; cases.append(bad)
         for data in cases:
             with self.assertRaises(ConfigurationError):
                 L.validate_settings(data)
@@ -245,9 +248,11 @@ class FamilyEntryTests(unittest.TestCase):
 
 
 class PrepareTests(unittest.TestCase):
-    def _prepare(self, entries, symbols, need_template=True, show_heading=True, text_error=False, template_error=False):
+    def _prepare(self, entries, symbols, need_template=True, show_heading=True, text_error=False, template_error=False,
+                 show_text=True):
         config = _config()
         config["styles"]["show_heading"] = show_heading
+        config["styles"]["show_text"] = show_text
 
         def _text(_doc, name):
             if text_error:
@@ -269,6 +274,7 @@ class PrepareTests(unittest.TestCase):
         resolved = self._prepare(entries, {"IWS-105": "s1", "IWS-110": "s2"})
         self.assertEqual(resolved["problems"], [])
         self.assertEqual(resolved["heading_type"], "text-type")
+        self.assertEqual(resolved["text_type"], "text-type")
         self.assertEqual(resolved["template"], "template")
 
     def test_all_problems_are_reported_together(self):
@@ -282,7 +288,7 @@ class PrepareTests(unittest.TestCase):
     def test_update_without_heading_needs_no_template_or_text(self):
         entries = [L.LibraryEntry("IWS-105")]
         resolved = self._prepare(entries, {"IWS-105": "s1"}, need_template=False, show_heading=False,
-                                 text_error=True, template_error=True)
+                                 text_error=True, template_error=True, show_text=False)
         self.assertEqual(resolved["problems"], [])
         self.assertIsNone(resolved["template"])
         self.assertIsNone(resolved["heading_type"])
@@ -294,6 +300,9 @@ class PrepareTests(unittest.TestCase):
         self.assertEqual(first, S.library_hash("Walls", config, [L.LibraryEntry("A", symbol_unique_id="x")]))
         self.assertNotEqual(first, S.library_hash("Walls", config, [L.LibraryEntry("A", symbol_unique_id="y")]))
         self.assertNotEqual(first, S.library_hash("Walls", _config(family_name="Other"), entries))
+        self.assertNotEqual(first, S.library_hash("Walls", config, [L.LibraryEntry("A", "new text", symbol_unique_id="x")]))
+        self.assertNotEqual(first, S.library_hash("Walls", config, entries, width_mm=90))
+        self.assertEqual(first, S.library_hash("Walls", config, entries, width_mm=config["layout"]["width_mm"]))
         config["layout"]["row_gap_mm"] = 9
         self.assertNotEqual(first, S.library_hash("Walls", config, entries))
 
@@ -309,6 +318,39 @@ class StackTests(unittest.TestCase):
         self.assertEqual(tops, [0.0])
         self.assertEqual(bottom, -2.0)
         self.assertEqual(L.stack_rows([], 1.0), ([], 0.0))
+
+
+class TextLayoutTests(unittest.TestCase):
+    def test_text_width_is_what_the_graphic_leaves(self):
+        self.assertEqual(L.text_width_mm(120, 20, 3), 97.0)
+        with self.assertRaises(ValueError) as caught:
+            L.text_width_mm(30, 20, 3)
+        self.assertIn("at least 38 mm", str(caught.exception))
+
+    def test_row_is_as_tall_as_graphic_or_text(self):
+        self.assertEqual(L.row_heights([4.0, 6.0, 0.0], [5.0, 2.0, 3.0]), [5.0, 6.0, 3.0])
+
+    def test_text_pattern(self):
+        entry = L.LibraryEntry("IWS-105", "Metal stud partition")
+        self.assertEqual(L.format_text("{description}", entry), "Metal stud partition")
+        self.assertEqual(L.format_text("{code}  {description}", entry), "IWS-105  Metal stud partition")
+        self.assertEqual(L.format_text("{description}", L.LibraryEntry("IWS-105")), "")
+
+    def test_width_typed_in_cm(self):
+        self.assertEqual(L.parse_width_cm("12"), 120.0)
+        self.assertEqual(L.parse_width_cm(" 12,5 cm"), 125.0)
+        for text in ("", "abc", "1", "150", None):
+            self.assertIsNone(L.parse_width_cm(text))
+
+    def test_box_drawn_in_any_direction(self):
+        import placement_service
+        self.assertEqual(placement_service.box_top_left_and_width(5.0, 1.0, 2.0, 4.0), (2.0, 4.0, 3.0))
+        self.assertEqual(placement_service.box_top_left_and_width(2.0, 4.0, 5.0, 1.0), (2.0, 4.0, 3.0))
+
+    def test_width_falls_back_to_settings(self):
+        config = _config()
+        self.assertEqual(S.legend_width_mm(config), 120.0)
+        self.assertEqual(S.legend_width_mm(config, 85), 85.0)
 
 
 class MatchingTests(unittest.TestCase):

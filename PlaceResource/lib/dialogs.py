@@ -68,6 +68,8 @@ BASE_WIDTH = 820
 BASE_HEIGHT = 600
 MIN_WIDTH = 520
 MIN_HEIGHT = 360
+COMPACT_WIDTH = 520
+COMPACT_HEIGHT = 200
 PROMPT_HEIGHT = 64
 BUTTON_BAR_HEIGHT = 52
 BUTTON_WIDTH = 110
@@ -147,7 +149,7 @@ def choose_many_from_list(title, labels, preselected=None, prompt=None, button_t
         form.Dispose()
 
 
-def _build_form(title, prompt, button_text, box):
+def _build_form(title, prompt, button_text, box, compact=False):
     """A resizable window: wrapped prompt on top, ``box`` filling the middle, OK/Cancel at the bottom.
 
     Sizes are given at 96 dpi and scaled to the screen, because Revit is DPI-aware and
@@ -171,8 +173,9 @@ def _build_form(title, prompt, button_text, box):
     factor = _dpi_factor(form)
     form.Text = title
     form.Font = Font(FONT_NAME, FONT_SIZE)
-    form.Size = Size(scaled(BASE_WIDTH, factor), scaled(BASE_HEIGHT, factor))
-    form.MinimumSize = Size(scaled(MIN_WIDTH, factor), scaled(MIN_HEIGHT, factor))
+    height = COMPACT_HEIGHT if compact else BASE_HEIGHT
+    form.Size = Size(scaled(BASE_WIDTH if not compact else COMPACT_WIDTH, factor), scaled(height, factor))
+    form.MinimumSize = Size(scaled(MIN_WIDTH if not compact else COMPACT_WIDTH, factor), scaled(min(MIN_HEIGHT, height), factor))
     form.StartPosition = FormStartPosition.CenterScreen
     form.TopMost = True
     form.ShowInTaskbar = False
@@ -185,8 +188,9 @@ def _build_form(title, prompt, button_text, box):
     header.Padding = Padding(scaled(10, factor), scaled(8, factor), scaled(10, factor), scaled(4, factor))
 
     box.Dock = DockStyle.Fill
-    box.IntegralHeight = False
-    box.HorizontalScrollbar = True
+    if hasattr(box, "IntegralHeight"):
+        box.IntegralHeight = False
+        box.HorizontalScrollbar = True
 
     buttons = FlowLayoutPanel()
     buttons.Dock = DockStyle.Bottom
@@ -216,6 +220,21 @@ def _build_form(title, prompt, button_text, box):
     box.BringToFront()
     form.ActiveControl = box
     return form
+
+
+def ask_text(title, prompt, default="", button_text="OK"):
+    """Ask for one line of text. Returns the text, or None when cancelled."""
+    _load_winforms()
+    from System.Windows.Forms import DialogResult, TextBox
+    box = TextBox()
+    box.Text = default or ""
+    form = _build_form(title, prompt, button_text, box, compact=True)
+    try:
+        if form.ShowDialog() != DialogResult.OK:
+            return None
+        return box.Text
+    finally:
+        form.Dispose()
 
 
 def _load_winforms():

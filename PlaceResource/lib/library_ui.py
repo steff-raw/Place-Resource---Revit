@@ -137,7 +137,6 @@ def run_setup(doc, library_settings):
 def run_sheet_legend(doc, uidoc, sheet, category, library_settings):
     """Place Legend: rows for one category on one sheet, then place the legend. Returns the report or None."""
     from collectors import type_marks_for_source
-    from placement_service import interactive_place, legend_viewport_on_sheet, sheet_label
     config = dict(project_library(doc, library_settings)["categories"][category])
     if find_family(doc, config["family_name"]) is None:
         family = choose_family(doc, category, config)
@@ -162,34 +161,117 @@ def run_sheet_legend(doc, uidoc, sheet, category, library_settings):
     )
     if not chosen:
         return None
+    size = choose_width(uidoc, sheet, config, existing)
+    if size is None:
+        return None
+    width_mm, corner = size
     if not _ensure_text(doc, config):
         return None
-    report = build_library_legend(doc, config, chosen, sheet=sheet, legend_view=existing)
+    report = build_library_legend(doc, config, chosen, sheet=sheet, legend_view=existing, width_mm=width_mm)
     if report["status"] in ("created", "updated"):
         legend_view = doc.GetElement(existing.Id) if existing is not None else _view_by_id(doc, report["legend_view_id"])
-        if legend_view is not None and legend_viewport_on_sheet(doc, sheet, legend_view) is not None:
-            report["notices"].append("The legend is already on '{0}'. Its position was kept.".format(sheet_label(sheet)))
-        elif legend_view is not None:
-            try:
-                viewport, warnings = interactive_place(doc, uidoc, sheet, legend_view, config, active_sheet=sheet)
-                report["warnings"].extend(warnings or [])
-                if viewport is None:
-                    report["warnings"].append("The legend was saved and was not placed on the sheet.")
-            except Exception as ex:
-                report["warnings"].append("The legend was saved but not placed. {0}".format(ex))
+        try:
+            _put_on_sheet(doc, uidoc, sheet, legend_view, config, corner, report)
+        except Exception as ex:
+            report["warnings"].append("The legend was saved but not placed. {0}".format(ex))
     print_library_report(report)
     if report["status"] == "failed":
         alert_error("Place Legend on Sheet", "\n".join(report["errors"]))
     return report
 
 
+def choose_width(uidoc, sheet, config, existing):
+    """Ask how wide the legend is. Returns (width_mm, top-left XYZ or None), or None when cancelled.
+
+    Drawing a box gives both the width and where the legend goes. A typed width
+    keeps the usual pick-a-point placement.
+    """
+    from legend_library import MAX_WIDTH_CM, MIN_WIDTH_CM, parse_width_cm
+    from placement_service import pick_sheet_box
+    from units import internal_to_mm
+    current = (read_view_payload(existing) or {}).get("width_mm") if existing is not None else None
+    options = [
+        ("box", "Draw a box on the sheet", "The text wraps to the box width. The legend starts at its top-left corner."),
+        ("cm", "Type the width in cm", "Then pick where the legend goes."),
+    ]
+    if current:
+        options.append(("keep", "Keep the current width ({0:g} cm)".format(round(current / 10.0, 1)), None))
+    choice = dialogs.choose_command(
+        "{0} legend width".format(config["name"]),
+        "How wide should the legend be on the sheet?",
+        options,
+    )
+    if choice is None:
+        return None
+    if choice == "keep":
+        return float(current), None
+    if choice == "box":
+        picked = pick_sheet_box(uidoc, sheet)
+        if picked is None:
+            return None
+        corner, width = picked
+        width_mm = internal_to_mm(width)
+        if width_mm < MIN_WIDTH_CM * 10:
+            dialogs.alert("The box is only {0:.0f} mm wide. Draw a wider box.".format(width_mm), title="Legend width")
+            return None
+        return width_mm, corner
+    default = "{0:g}".format(round(_stored_width(existing, config) / 10.0, 1))
+    prompt = "Legend width in cm, from {0:g} to {1:g}.".format(MIN_WIDTH_CM, MAX_WIDTH_CM)
+    while True:
+        text = dialogs.ask_text("{0} legend width".format(config["name"]), prompt, default)
+        if text is None:
+            return None
+        width_mm = parse_width_cm(text)
+        if width_mm is not None:
+            return width_mm, None
+        prompt = "'{0}' is not a width from {1:g} to {2:g} cm. Type a number, e.g. 12.5.".format(
+            text, MIN_WIDTH_CM, MAX_WIDTH_CM
+        )
+        default = text
+
+
+def _put_on_sheet(doc, uidoc, sheet, legend_view, config, corner, report):
+    """Place the legend, or line up the one already on the sheet with a drawn box."""
+    from placement_service import (
+        align_top_left,
+        interactive_place,
+        legend_viewport_on_sheet,
+        place_on_sheet,
+        sheet_label,
+    )
+    if legend_view is None:
+        return
+    viewport = legend_viewport_on_sheet(doc, sheet, legend_view)
+    if viewport is not None:
+        if corner is None:
+            report["notices"].append("The legend is already on '{0}'. Its position was kept.".format(sheet_label(sheet)))
+            return
+        report["warnings"].extend(align_top_left(doc, viewport, corner))
+        report["notices"].append("The legend was moved to the box you drew.")
+        return
+    if corner is not None:
+        viewport, warnings = place_on_sheet(doc, sheet, legend_view, corner)
+        report["warnings"].extend(warnings or [])
+        report["warnings"].extend(align_top_left(doc, viewport, corner))
+        return
+    viewport, warnings = interactive_place(doc, uidoc, sheet, legend_view, config, active_sheet=sheet)
+    report["warnings"].extend(warnings or [])
+    if viewport is None:
+        report["warnings"].append("The legend was saved and was not placed on the sheet.")
+
+
 def _ensure_text(doc, config):
-    """The heading is the only text the tool writes; the family draws everything else."""
+    """Check the heading and row text types exist, asking for a style when they do not."""
     from ui_service import ensure_text_style
     styles = config["styles"]
-    if not styles.get("show_heading"):
+    names = []
+    if styles.get("show_heading"):
+        names.append(styles["heading_text_type"])
+    if styles.get("show_text", True):
+        names.append(styles["text_type"])
+    if not names:
         return True
-    return ensure_text_style(doc, [styles["heading_text_type"]])
+    return ensure_text_style(doc, names)
 
 
 def _confirm(category, config, chosen, existing):
@@ -198,6 +280,7 @@ def _confirm(category, config, chosen, existing):
         "Existing legend: {0}".format(existing.Name if existing is not None else "None, a new one will be made"),
         "Template legend: {0}".format(config["template_legend_name"]),
         "Scale: 1:{0}".format(config["scale"]),
+        "Width: {0:g} cm".format(round(_stored_width(existing, config) / 10.0, 1)),
     ])
     choice = dialogs.choose_command(
         "Legend Setup",
@@ -206,6 +289,11 @@ def _confirm(category, config, chosen, existing):
         content=content,
     )
     return choice == "apply"
+
+
+def _stored_width(existing, config):
+    stored = (read_view_payload(existing) or {}).get("width_mm") if existing is not None else None
+    return float(stored or config["layout"]["width_mm"])
 
 
 def _view_by_id(doc, value):

@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """Legend library settings, Type Mark matching and row stacking.
 
-The library lives in Revit as symbol families: one Generic Annotation family
-per category (e.g. "PR Legend - Walls"), one type per code, type name = Type Mark
-(e.g. IWS-105). Each type carries the graphic and the description. This module
-is pure Python; Revit reading is in symbol_library.py.
+The library lives in Revit as symbol families: one family per category, one type
+per Type Mark (e.g. IWS-105). The family draws the graphic. The description comes
+from a type parameter and the tool writes it as wrapped text. Pure Python;
+Revit reading is in symbol_library.py.
 """
 
 import copy
@@ -27,10 +27,15 @@ DEFAULTS = {
     "styles": {
         "heading_text_type": "2.5mm Arial Bold",
         "show_heading": True,
+        "text_type": "2.5mm Arial",
+        "show_text": True,
     },
     "layout": {
         "row_gap_mm": 3,
         "heading_gap_mm": 5,
+        "text_gap_mm": 3,
+        "width_mm": 120,
+        "text_pattern": "{description}",
     },
     "sheet_placement": {
         "mode": "pick_point",
@@ -57,7 +62,7 @@ class LibraryEntry(object):
         return self.code
 
     def as_hash_record(self):
-        return [self.code, self.symbol_unique_id or ""]
+        return [self.code, self.symbol_unique_id or "", self.description]
 
 
 def default_settings_path():
@@ -185,6 +190,50 @@ def stack_rows(heights, row_gap, heading_height=None, heading_gap=0.0):
     return tops, y
 
 
+MIN_TEXT_WIDTH_MM = 15.0
+MIN_WIDTH_CM = 2.0
+MAX_WIDTH_CM = 100.0
+
+
+def text_width_mm(total_mm, graphic_mm, gap_mm):
+    """Width left for the text after the widest graphic and the gap, in paper millimetres.
+
+    Raises ValueError when the legend is too narrow to fit readable text.
+    """
+    width = float(total_mm) - float(graphic_mm) - float(gap_mm)
+    if width < MIN_TEXT_WIDTH_MM:
+        raise ValueError(
+            "The legend is {0:.0f} mm wide but the symbols take {1:.0f} mm. Make it at least "
+            "{2:.0f} mm wide.".format(total_mm, graphic_mm, float(graphic_mm) + float(gap_mm) + MIN_TEXT_WIDTH_MM)
+        )
+    return width
+
+
+def row_heights(graphic_heights, text_heights):
+    """Each row is as tall as its graphic or its text, whichever is taller."""
+    return [max(float(g or 0.0), float(t or 0.0)) for g, t in zip(graphic_heights, text_heights)]
+
+
+def format_text(pattern, entry):
+    """Fill {code} and {description} for one row. Returns stripped text, empty when there is nothing to show."""
+    text = (pattern or "{description}").replace("{code}", entry.code or "").replace(
+        "{description}", entry.description or ""
+    )
+    return text.strip()
+
+
+def parse_width_cm(text):
+    """Read a width typed in cm ("12", "12.5", "12,5", "12 cm"). Returns millimetres, or None when not valid."""
+    value = (text or "").strip().lower().replace("cm", "").replace(",", ".").strip()
+    try:
+        number = float(value)
+    except ValueError:
+        return None
+    if number < MIN_WIDTH_CM or number > MAX_WIDTH_CM:
+        return None
+    return number * 10.0
+
+
 def _merge(base, override):
     merged = copy.deepcopy(base)
     for key, value in (override or {}).items():
@@ -211,11 +260,20 @@ def _validate_category(config, prefix):
         raise ConfigurationError("{0}: styles.heading_text_type must name a text note type.".format(prefix))
     if not isinstance(styles.get("show_heading"), bool):
         raise ConfigurationError("{0}: styles.show_heading must be true or false.".format(prefix))
+    if not isinstance(styles.get("text_type"), str) or not styles["text_type"].strip():
+        raise ConfigurationError("{0}: styles.text_type must name a text note type.".format(prefix))
+    if not isinstance(styles.get("show_text"), bool):
+        raise ConfigurationError("{0}: styles.show_text must be true or false.".format(prefix))
     layout = config.get("layout") or {}
-    for key in ("row_gap_mm", "heading_gap_mm"):
+    for key in ("row_gap_mm", "heading_gap_mm", "text_gap_mm"):
         value = layout.get(key)
         if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
             raise ConfigurationError("{0}: layout.{1} must be a number of millimetres, 0 or more.".format(prefix, key))
+    width = layout.get("width_mm")
+    if isinstance(width, bool) or not isinstance(width, (int, float)) or not 20 <= width <= 1000:
+        raise ConfigurationError("{0}: layout.width_mm must be between 20 and 1000.".format(prefix))
+    if not isinstance(layout.get("text_pattern"), str):
+        raise ConfigurationError("{0}: layout.text_pattern must be text such as {{description}}.".format(prefix))
     placement = config.get("sheet_placement") or {}
     if placement.get("mode") not in ("pick_point", "configured_point"):
         raise ConfigurationError("{0}: sheet_placement.mode must be pick_point or configured_point.".format(prefix))

@@ -10,11 +10,16 @@
     "source_view_types": ["FloorPlan", "CeilingPlan", "Section", "Elevation"],
     "styles": {
       "heading_text_type": "2.5mm Arial Bold",
-      "show_heading": true
+      "show_heading": true,
+      "text_type": "2.5mm Arial",
+      "show_text": true
     },
     "layout": {
       "row_gap_mm": 3,
-      "heading_gap_mm": 5
+      "heading_gap_mm": 5,
+      "text_gap_mm": 3,
+      "width_mm": 120,
+      "text_pattern": "{description}"
     },
     "sheet_placement": {
       "mode": "pick_point",

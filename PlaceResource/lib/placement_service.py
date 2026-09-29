@@ -142,6 +142,42 @@ def interactive_place(doc, uidoc, source_view, legend_view, definition, active_s
 
 def _pick_on_sheet(uidoc, sheet):
     from ui_service import pick_sheet_point
+    return _with_sheet_open(uidoc, sheet, pick_sheet_point)
+
+
+def box_top_left_and_width(min_x, min_y, max_x, max_y):
+    """Top-left corner and width of a box drawn in any direction. Returns (x, y, width)."""
+    return min(min_x, max_x), max(min_y, max_y), abs(max_x - min_x)
+
+
+def pick_sheet_box(uidoc, sheet):
+    """Let the user draw a box on the sheet. Returns (top-left XYZ, width in feet), or None when cancelled."""
+    from ui_service import pick_box
+
+    picked = _with_sheet_open(uidoc, sheet, pick_box)
+    if picked is None:
+        return None
+    DB = get_db()
+    x, y, width = box_top_left_and_width(picked.Min.X, picked.Min.Y, picked.Max.X, picked.Max.Y)
+    return DB.XYZ(x, y, 0), width
+
+
+def align_top_left(doc, viewport, point):
+    """Move a viewport so the top-left of its box sits on ``point``. Opens its own transaction."""
+    DB = get_db()
+    with TransactionContext(doc, "Line up legend with the box") as transaction:
+        outline = viewport.GetBoxOutline()
+        low = outline.MinimumPoint
+        high = outline.MaximumPoint
+        centre = viewport.GetBoxCenter()
+        dx = point.X - low.X
+        dy = point.Y - high.Y
+        viewport.SetBoxCenter(DB.XYZ(centre.X + dx, centre.Y + dy, centre.Z))
+    return list(transaction.warnings)
+
+
+def _with_sheet_open(uidoc, sheet, action):
+    """Run ``action(uidoc)`` with the sheet as the active view, then switch back."""
     previous = uidoc.ActiveView
     switched = element_id_value(previous.Id) != element_id_value(sheet.Id)
     if switched:
@@ -149,11 +185,12 @@ def _pick_on_sheet(uidoc, sheet):
             uidoc.ActiveView = sheet
         except Exception as ex:
             raise LegendOperationError(
-                "Could not open sheet '{0}' to pick a point. Open it first, or set sheet_placement.mode "
-                "to configured_point. {1}".format(sheet_label(sheet), ex)
+                "Could not open sheet '{0}'. Open it first and run the command again. {1}".format(
+                    sheet_label(sheet), ex
+                )
             )
     try:
-        return pick_sheet_point(uidoc)
+        return action(uidoc)
     finally:
         if switched:
             try:

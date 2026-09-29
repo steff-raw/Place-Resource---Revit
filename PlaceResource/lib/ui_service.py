@@ -126,6 +126,20 @@ def pick_sheet_point(uidoc):
         raise
 
 
+def pick_box(uidoc):
+    """Let the user draw a box. Returns the PickedBox, or None if cancelled."""
+    from Autodesk.Revit.Exceptions import OperationCanceledException
+    from Autodesk.Revit.UI.Selection import PickBoxStyle
+    try:
+        return uidoc.Selection.PickBox(PickBoxStyle.Enclosing, "Draw the legend area: click two opposite corners")
+    except OperationCanceledException:
+        return None
+    except Exception as ex:
+        if "cancel" in str(ex).lower():
+            return None
+        raise
+
+
 SETTINGS_ACTIONS = (
     "Legend text style",
     "Check the settings file",

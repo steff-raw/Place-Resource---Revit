@@ -79,17 +79,18 @@ Open **Place Resources > Settings > Choose legend text style** and pick any text
 
 ## Library legends: symbol families
 
-The library lives in Revit as **one Generic Annotation family per category**, for example `PR Legend - Walls` or `PR Legend - Fire Strategy`:
+The library lives in Revit as **one symbol family per category**:
 
-- **One family type per code.** The type name is the Type Mark, e.g. `IWS-105`.
-- **Each type draws everything for its row:** the hatch swatch, the code and the description.
-- **Changes flow through:** edit or reload the family and every legend using it updates, without running the tool.
+- **One family type per Type Mark.** The type name is the Type Mark, e.g. `IWS-105`.
+- **The family draws the graphic only** (hatch swatch, symbol). No label in the family.
+- **The tool writes the text:** it reads the `Description` type parameter and places it as a text note to the right of the graphic, wrapped to the legend width, in your legend text style.
+- **Changes:** graphic edits show up as soon as the family is reloaded. Description edits need **Update All**.
 
 ### Make the legend family (by hand, once per category)
 
 1. **New family:** Generic Annotation or Detail Item. Any name. You pick it per category in Legend Setup.
 2. **One type per code:** the type name must be the Type Mark exactly, e.g. `IWS-105`. This is how the tool finds the type for a Type Mark.
-3. **`Description`:** add a type text parameter called `Description` with a label. The tool shows it in the tick lists; use `description_parameter` for a different name.
+3. **`Description`:** add a type text parameter called `Description` and fill it per type. No label needed. Use `description_parameter` for a different name.
 4. **Graphic:** draw the hatch or graphic per type any way you like, e.g. filled regions switched on and off by Yes/No type parameters.
 5. **Load** the family into the project or template.
 
@@ -98,14 +99,19 @@ The library lives in Revit as **one Generic Annotation family per category**, fo
 1. Run **Place Resources > Legend Setup** and choose a category. The list shows each category's family and how many types it has.
 2. Pick the symbol family for that category from the families loaded in the model. The pick is saved in the model, so each project can use its own family.
 3. Tick the types. A new legend starts with all ticked; an existing one starts with its current rows.
-4. Confirm. The legend `<Category> LEGEND` is created or updated: one symbol per type, stacked, under a heading in your text style.
+4. Confirm. The legend `<Category> LEGEND` is created or updated: graphic on the left, description on the right, one row per type, under a heading. Width: the width already stored on the legend, else `layout.width_mm`.
 
 ### Place Legend on Sheet (library legends)
 
 On a sheet, first choose which legends the sheet shows. For each library category:
 
 - **Walls, Floors, Ceilings, Doors:** types whose name matches a Type Mark in the sheet's plans, sections or elevations start ticked. Add or remove as needed.
-- **Result:** the sheet legend `<Category> LEGEND - <sheet number>` is created or updated and placed on the sheet. An existing one keeps its position.
+- **Width:** after ticking the rows, choose one:
+  - **Draw a box on the sheet:** the box width sets the legend width, and the legend's top-left goes to the box's top-left corner.
+  - **Type the width in cm** (2 to 100), then pick a point.
+  - **Keep the current width** (existing legends).
+- **Text wrapping:** text width = legend width - widest graphic - `text_gap_mm`. Each row is as tall as its graphic or its text, whichever is taller.
+- **Result:** the sheet legend `<Category> LEGEND - <sheet number>` is created or updated and placed on the sheet. The width is stored on the legend and reused by Update All. An existing one keeps its position unless you drew a box.
 
 **Update All** adds or removes rows only when the stored rows or the family's types changed; graphics update through the family itself. **Audit** reports:
 
@@ -122,12 +128,14 @@ Per category, with shared `defaults`:
 - `family_name` (default `PR Legend - {category}`, used until a family is picked in Legend Setup) and `description_parameter`
 - `revit_category` (for Type Mark matching; `null` for zone categories) and `source_view_types`
 - `template_legend_name`, the name patterns and `scale`
-- `styles.heading_text_type` / `show_heading`, and `layout.row_gap_mm` / `heading_gap_mm`
+- `styles.heading_text_type` / `show_heading`, `styles.text_type` / `show_text`
+- `layout.row_gap_mm` / `heading_gap_mm` / `text_gap_mm`, `layout.width_mm` (default width, mm), `layout.text_pattern` (`{description}`, or `{code}  {description}` to add the Type Mark)
 - `sheet_placement`
 
 ### Not yet confirmed in Revit
 
 - Placing annotation symbols in a legend with `NewFamilyInstance`.
+- `Selection.PickBox` on a sheet and lining up the viewport with `SetBoxCenter`.
 
 ## Prepare a template legend
 
@@ -349,7 +357,10 @@ Text style and library families:
 - [ ] Load `PR Legend - Walls` (types IWS-105, IWS-110). Legend Setup lists them with their Description.
 - [ ] Edit the family (hatch or description) and reload it: existing legends show the change without running the tool.
 - [ ] A family that is not a Generic Annotation (or Detail Item) family is refused with a clear message.
-- [ ] Legend Setup, Walls: one symbol per ticked type, stacked under the heading.
+- [ ] Legend Setup, Walls: one symbol per ticked type, stacked under the heading, description to the right.
+- [ ] Place Legend on Sheet, draw a 12 cm box: text wraps inside 12 cm, legend top-left at the box corner.
+- [ ] Place Legend on Sheet, type 8 cm: longer descriptions wrap to more lines, rows do not overlap.
+- [ ] Edit a Description in the family, reload, Update All: the legend text changes.
 - [ ] Place Legend on a sheet with a plan and a section: wall Type Marks from both views are ticked.
 - [ ] Move the legend on the sheet and update: the position is kept, and a manual note in the legend survives.
 - [ ] Delete a family type, run Update All / Audit: the missing type is reported.
