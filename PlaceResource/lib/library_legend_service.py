@@ -364,7 +364,7 @@ def _set_toggles(instances, config, show_type_mark, report):
                 problems.add(name)
     for name in sorted(problems):
         report["warnings"].append(
-            "Could not set '{0}' on the symbols. Check it is a Yes/No instance parameter in family '{1}'.".format(
+            "Could not set '{0}' in this legend. Check it is a Yes/No instance parameter in family '{1}'.".format(
                 name, config["family_name"]
             )
         )

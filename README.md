@@ -96,7 +96,7 @@ The library lives in Revit as **one symbol family per category**:
    |---|---|---|
    | `Legend_Description` | type, text | Reads it and writes it as wrapped text |
    | `Legend_TypeMark` | label above the graphic | Nothing (the family fills it) |
-   | `Legend_TypeMark_Visibility` | instance, Yes/No | Set from your answer each time you place or set up a legend |
+   | `Legend_TypeMark_Visibility` | instance, Yes/No | Set once per legend from your answer (asked each time you place or set up a legend) |
    | `Text_Visibility` | instance, Yes/No | Always set to No (the tool writes the text instead) |
 4. **Graphic:** draw the hatch or graphic per type any way you like, e.g. filled regions switched on and off by Yes/No type parameters.
 5. **Load** the family into the project or template.

@@ -244,7 +244,7 @@ def ask_type_mark(config, existing):
     """
     stored = (read_view_payload(existing) or {}).get("show_type_mark") if existing is not None else None
     current = bool(config.get("show_type_mark", True)) if stored is None else bool(stored)
-    show = ("show", "Show the Type Mark", "Turns on '{0}' on each symbol.".format(config["type_mark_visibility_parameter"]))
+    show = ("show", "Show the Type Mark", "Applies to the whole legend.")
     hide = ("hide", "Hide the Type Mark", None)
     choice = dialogs.choose_command(
         "{0} legend".format(config["name"]),
