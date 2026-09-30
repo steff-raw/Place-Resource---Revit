@@ -9,7 +9,8 @@ tool places one symbol per type in the category legend, stacked under a heading.
 __title__ = "Legend\nSetup"
 __doc__ = (
     "Create or update a library legend: choose a category (Walls, Fire Strategy, ...), "
-    "tick the types of its symbol family, and one symbol per type is placed in the legend."
+    "its symbol family and the types. With a sheet open, the legend is made for that sheet "
+    "and named with its sheet number."
 )
 __author__ = "Place Resource"
 
@@ -77,7 +78,7 @@ def main():
     assert_project_document(doc)
     trail.step("reading library_legends.json")
     library_settings = load_library_settings()
-    run_setup(doc, library_settings)
+    run_setup(doc, library_settings, revit.uidoc)
     trail.step("finished")
 
 

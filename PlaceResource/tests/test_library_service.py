@@ -268,7 +268,7 @@ class PrepareTests(unittest.TestCase):
 
         with mock.patch.object(S, "symbols_by_code", return_value=symbols), \
                 mock.patch.object(S, "resolve_text_type", side_effect=_text), \
-                mock.patch.object(S, "find_template_legend", side_effect=_template):
+                mock.patch.object(S, "find_source_legend", side_effect=_template):
             return S.prepare(None, config, entries, need_template)
 
     def test_everything_resolves(self):
@@ -322,6 +322,13 @@ class StackTests(unittest.TestCase):
         self.assertEqual(tops, [0.0])
         self.assertEqual(bottom, -2.0)
         self.assertEqual(L.stack_rows([], 1.0), ([], 0.0))
+
+
+class SourceLegendTests(unittest.TestCase):
+    def test_named_legend_first_then_any_legend(self):
+        self.assertEqual(S.pick_source_legend(["Door Key", "_TEMPLATE - LIBRARY LEGEND"], "_TEMPLATE - LIBRARY LEGEND"), 1)
+        self.assertEqual(S.pick_source_legend(["Wall Key", "Door Key"], "_TEMPLATE - LIBRARY LEGEND"), 1)
+        self.assertIsNone(S.pick_source_legend([], "_TEMPLATE - LIBRARY LEGEND"))
 
 
 class TextLayoutTests(unittest.TestCase):
