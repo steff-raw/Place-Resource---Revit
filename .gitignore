@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 PlaceResource/config/user_settings_path.txt
 PlaceResource/config/registries/
+PlaceResource/logs/

@@ -21,6 +21,7 @@ The tool runs on machines with tight security. These rules override convenience,
 8. **Local writes only, in known places:**
    - `PlaceResource/config/user_settings_path.txt`
    - `PlaceResource/config/registries/*.json`
+   - `PlaceResource/logs/last_run.txt` (step log for crash finding, replaced every run)
    - the settings file the user picks
    - Extensible Storage inside the Revit model
 

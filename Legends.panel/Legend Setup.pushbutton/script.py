@@ -53,6 +53,11 @@ def _find_lib():
 
 _find_lib()
 
+import trail
+
+trail.start("Legend Setup")
+trail.step("loading modules")
+
 from pyrevit import revit
 
 from errors import LegendToolError
@@ -63,13 +68,17 @@ from reporting import alert_error
 from validation import assert_project_document
 
 LOGGER = get_logger("legend_setup")
+trail.step("modules loaded")
 
 
 def main():
     """Load the library, then run the setup dialogs and build the legend."""
     doc = revit.doc
     assert_project_document(doc)
-    run_setup(doc, load_library_settings())
+    trail.step("reading library_legends.json")
+    library_settings = load_library_settings()
+    run_setup(doc, library_settings)
+    trail.step("finished")
 
 
 if __name__ == "__main__":

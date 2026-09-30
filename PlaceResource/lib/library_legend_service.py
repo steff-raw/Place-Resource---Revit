@@ -36,6 +36,7 @@ from legend_library import (
     text_width_mm,
 )
 from logging_service import get_logger
+from trail import step
 from symbol_library import family_entries, symbols_by_code
 from transactions import TransactionContext, TransactionGroupContext
 from units import internal_to_mm, mm_to_internal
@@ -267,6 +268,7 @@ def _run(doc, config, entries, sheet, existing, resolved, report, width_mm, show
     with TransactionGroupContext(doc, "Place Resource: {0} legend".format(category)):
         with TransactionContext(doc, "Prepare library legend") as transaction:
             if existing is None:
+                step("copying the template legend")
                 view = _new_legend(doc, resolved["template"], config, sheet, report)
             else:
                 view = existing
@@ -274,12 +276,14 @@ def _run(doc, config, entries, sheet, existing, resolved, report, width_mm, show
                 doomed = [element for element, payload in collect_managed_elements(doc, view)
                           if payload.get("role") in LIBRARY_ROLES]
                 if doomed:
+                    step("removing {0} old legend elements".format(len(doomed)))
                     delete_managed_elements(doc, doomed)
             payload = build_library_view_payload(category, codes, sheet, library_hash(category, config, entries, width_mm, show_type_mark))
             payload["source"] = SOURCE_FAMILY
             payload["width_mm"] = width_mm
             payload["show_type_mark"] = show_type_mark
             payload["family_name"] = config["family_name"]
+            step("saving legend data in the model")
             if write_view_identity(view, payload, doc) == "json_registry":
                 report["warnings"].append(
                     "Could not save the legend's settings inside the model. They were saved in a local file "
@@ -293,25 +297,31 @@ def _run(doc, config, entries, sheet, existing, resolved, report, width_mm, show
             origin = DB.XYZ(0, 0, 0)
             service = LegendComponentService(doc, view)
             if resolved["heading_type"] is not None:
+                step("adding heading text")
                 heading = service.create_text(origin, category, resolved["heading_type"].Id, 0)
                 write_element_identity(heading, build_library_element_payload(category, None, "library_heading"))
             for entry in entries:
                 symbol = resolved["symbols"][entry.code]
+                step("placing symbol {0}".format(entry.code))
                 instance = _place_symbol(doc, view, symbol, origin, entry.code)
                 write_element_identity(instance, build_library_element_payload(category, entry.code, "library_row"))
                 placed.append((entry, instance))
+            step("setting Yes/No parameters")
             _set_toggles([instance for _entry, instance in placed], config, show_type_mark, report)
+            step("regenerating after symbols")
             doc.Regenerate()
         report["warnings"].extend(transaction.warnings)
 
         texts = {}
         with TransactionContext(doc, "Add legend text") as transaction:
             if resolved["text_type"] is not None:
+                step("adding description text")
                 texts = _add_texts(doc, view, config, placed, resolved["text_type"], width_mm, report)
                 doc.Regenerate()
         report["warnings"].extend(transaction.warnings)
 
         with TransactionContext(doc, "Arrange legend symbols") as transaction:
+            step("arranging rows")
             _arrange(doc, view, config, heading, placed, texts, report)
             if viewports:
                 _restore_viewports(doc, viewports, report)

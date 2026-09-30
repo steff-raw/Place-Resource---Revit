@@ -52,6 +52,10 @@ def _find_lib():
 
 _find_lib()
 
+import trail
+
+trail.start("Place Legend on Sheet")
+
 from pyrevit import revit
 
 from configuration import load_settings

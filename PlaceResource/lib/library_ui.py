@@ -6,6 +6,7 @@ before any transaction. Model changes happen only in library_legend_service.
 """
 
 import dialogs
+import trail
 from identity import find_library_legend, read_view_payload
 from legend_library import match_type_marks
 from library_legend_service import build_library_legend, project_library
@@ -15,12 +16,14 @@ from symbol_library import family_entries, find_family, legend_families
 
 def choose_category(doc, library_settings, title="Legend Setup", prompt=None):
     """Return a category name, or None when cancelled. Each row shows its family and type count."""
+    trail.step("reading family picks saved in the model")
     library_settings = project_library(doc, library_settings)
     names = list(library_settings["categories"].keys())
     labels = []
     details = []
     for name in names:
         config = library_settings["categories"][name]
+        trail.step("reading family '{0}' for {1}".format(config["family_name"], name))
         entries, problems = family_entries(doc, config)
         labels.append(name)
         if problems:
@@ -38,6 +41,7 @@ def choose_family(doc, category, config):
 
     Returns the family name, or None when cancelled or no suitable family is loaded.
     """
+    trail.step("listing annotation and detail families")
     families = legend_families(doc)
     if not families:
         dialogs.alert(
@@ -67,6 +71,7 @@ def choose_family(doc, category, config):
     chosen = names[index]
     if chosen != current:
         from project_settings import assign_family
+        trail.step("saving family pick '{0}' for {1}".format(chosen, category))
         assign_family(doc, category, chosen)
     return chosen
 
@@ -109,6 +114,7 @@ def run_setup(doc, library_settings):
     if family is None:
         return None
     config["family_name"] = family
+    trail.step("looking for an existing {0} legend".format(category))
     existing = find_library_legend(doc, category, None)
     stored = (read_view_payload(existing) or {}).get("codes") if existing is not None else None
     if stored is None:
@@ -130,6 +136,7 @@ def run_setup(doc, library_settings):
         return None
     if not _ensure_text(doc, config):
         return None
+    trail.step("building legend for {0}".format(category))
     report = build_library_legend(doc, config, chosen, sheet=None, legend_view=existing, show_type_mark=show_type_mark)
     print_library_report(report)
     if report["status"] == "failed":
@@ -173,6 +180,7 @@ def run_sheet_legend(doc, uidoc, sheet, category, library_settings):
         return None
     if not _ensure_text(doc, config):
         return None
+    trail.step("building sheet legend for {0}".format(category))
     report = build_library_legend(doc, config, chosen, sheet=sheet, legend_view=existing,
                                   width_mm=width_mm, show_type_mark=show_type_mark)
     if report["status"] in ("created", "updated"):
@@ -297,6 +305,7 @@ def _ensure_text(doc, config):
         names.append(styles["text_type"])
     if not names:
         return True
+    trail.step("checking text types: {0}".format(", ".join(names)))
     return ensure_text_style(doc, names)
 
 

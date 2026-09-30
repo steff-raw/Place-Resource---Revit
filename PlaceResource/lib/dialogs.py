@@ -16,6 +16,7 @@ _COMMAND_LINKS = ("CommandLink1", "CommandLink2", "CommandLink3", "CommandLink4"
 def alert(message, title="Place Resource"):
     """Show a message with an OK button."""
     from Autodesk.Revit.UI import TaskDialog
+    trail_step("showing message: {0}".format(title))
     TaskDialog.Show(title, message)
 
 
@@ -51,6 +52,7 @@ def choose_command(title, instruction, options, content=None, footer=None):
         else:
             dialog.AddCommandLink(link_id, label)
         results.append((getattr(TaskDialogResult, link_name), key))
+    trail_step("showing choice: {0}".format(instruction))
     result = dialog.Show()
     for link_result, key in results:
         if result == link_result:
@@ -114,6 +116,7 @@ def choose_from_list(title, labels, prompt=None, button_text="Select", selected_
     box.SelectedIndex = selected_index if selected_index is not None and 0 <= selected_index < len(rows) else 0
     form = _build_form(title, prompt or "Select one item, then press {0}.".format(button_text), button_text, box)
     try:
+        trail_step("showing list: {0}".format(title))
         result = form.ShowDialog()
         if result != DialogResult.OK or box.SelectedIndex < 0:
             return None
@@ -141,6 +144,7 @@ def choose_many_from_list(title, labels, preselected=None, prompt=None, button_t
         box.SetItemChecked(index, True)
     form = _build_form(title, prompt or "Tick the items to include, then press {0}.".format(button_text), button_text, box)
     try:
+        trail_step("showing tick list: {0}".format(title))
         result = form.ShowDialog()
         if result != DialogResult.OK:
             return None
@@ -230,11 +234,20 @@ def ask_text(title, prompt, default="", button_text="OK"):
     box.Text = default or ""
     form = _build_form(title, prompt, button_text, box, compact=True)
     try:
+        trail_step("showing text box: {0}".format(title))
         if form.ShowDialog() != DialogResult.OK:
             return None
         return box.Text
     finally:
         form.Dispose()
+
+
+def trail_step(text):
+    try:
+        import trail
+        trail.step(text)
+    except Exception:
+        pass
 
 
 def _load_winforms():
