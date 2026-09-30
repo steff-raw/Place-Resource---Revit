@@ -103,6 +103,10 @@ The library lives in Revit as **one symbol family per category**:
 
 ### Legend Setup
 
+- **With a sheet open:** the legend is made for that sheet, named `<Category> LEGEND - <sheet number>`, and placed on it (same steps as Place Legend on Sheet).
+- **With any other view open:** the category legend `<Category> LEGEND`, not tied to a sheet.
+- **No template needed:** a new legend is copied from `_TEMPLATE - LIBRARY LEGEND` if it exists, otherwise from any legend view in the model (the view only, not its contents). Revit's API cannot make a legend view from nothing, so a model with no legend at all needs one made by hand once: View > Legends > Legend.
+
 1. Run **Place Resources > Legend Setup** and choose a category. The list shows each category's family and how many types it has.
 2. Pick the symbol family for that category from the families loaded in the model. The pick is saved in the model, so each project can use its own family.
 3. Tick the types. A new legend starts with all ticked; an existing one starts with its current rows.

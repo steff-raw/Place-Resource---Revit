@@ -24,7 +24,7 @@ from identity import (
     write_element_identity,
     write_view_identity,
 )
-from legend_component_service import LegendComponentService, find_template_legend, resolve_text_type, unique_view_name
+from legend_component_service import LegendComponentService, resolve_text_type, unique_view_name
 from legend_library import (
     apply_pattern,
     entries_for_codes,
@@ -101,10 +101,46 @@ def prepare(doc, config, entries, need_template):
                 problems.append(str(ex))
     if need_template:
         try:
-            resolved["template"] = find_template_legend(doc, config["template_legend_name"])
+            resolved["template"] = find_source_legend(doc, config["template_legend_name"])
         except LegendOperationError as ex:
             problems.append(str(ex))
     return resolved
+
+
+def find_source_legend(doc, preferred_name):
+    """Pick the legend view that a new library legend is copied from.
+
+    Revit's API cannot make a legend view from nothing, only copy one. The legend
+    named ``preferred_name`` is used when it exists, otherwise any legend view in
+    the model. Only the view is copied, never its contents.
+    """
+    DB = get_db()
+    legends = []
+    for view in DB.FilteredElementCollector(doc).OfClass(DB.View):
+        try:
+            if view.IsTemplate or view.ViewType != DB.ViewType.Legend:
+                continue
+            legends.append(view)
+        except Exception:
+            continue
+    choice = pick_source_legend([view.Name for view in legends], preferred_name)
+    if choice is None:
+        raise LegendOperationError(
+            "This model has no legend views. Revit cannot make the first one by code: "
+            "go to View > Legends > Legend, click OK, then run this again. Any name works. "
+            "This is needed once per model."
+        )
+    return legends[choice]
+
+
+def pick_source_legend(names, preferred_name):
+    """Index of the legend to copy: the preferred name, else the first by name. None when there are none."""
+    if not names:
+        return None
+    for index, name in enumerate(names):
+        if name == preferred_name:
+            return index
+    return min(range(len(names)), key=lambda index: names[index].lower())
 
 
 def build_library_legend(doc, config, entries, sheet=None, legend_view=None, width_mm=None, show_type_mark=None):
@@ -448,7 +484,7 @@ def _arrange(doc, view, config, heading, placed, texts, report):
 
 
 def _new_legend(doc, template, config, sheet, report):
-    """Duplicate the template legend without its contents, then name it and set the scale."""
+    """Copy a legend view without its contents, then name it and set the scale."""
     DB = get_db()
     try:
         new_id = template.Duplicate(DB.ViewDuplicateOption.Duplicate)

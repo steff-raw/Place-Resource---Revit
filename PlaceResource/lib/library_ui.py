@@ -104,8 +104,12 @@ def choose_rows(doc, config, preselected_codes, prompt):
     return [entries[index] for index in indexes]
 
 
-def run_setup(doc, library_settings):
-    """Legend Setup: category, rows, then create or update the category legend (not tied to a sheet). Returns the report or None."""
+def run_setup(doc, library_settings, uidoc=None):
+    """Legend Setup: category, family, rows, then create or update the legend. Returns the report or None.
+
+    With a sheet open, the legend is made for that sheet (named with its sheet
+    number) and placed on it. Otherwise it is the category legend, not tied to a sheet.
+    """
     category = choose_category(doc, library_settings)
     if category is None:
         return None
@@ -113,6 +117,10 @@ def run_setup(doc, library_settings):
     family = choose_family(doc, category, config)
     if family is None:
         return None
+    sheet = _active_sheet(doc)
+    if sheet is not None and uidoc is not None:
+        # The family pick is saved in the model, so the sheet flow picks it up.
+        return run_sheet_legend(doc, uidoc, sheet, category, library_settings)
     config["family_name"] = family
     trail.step("looking for an existing {0} legend".format(category))
     existing = find_library_legend(doc, category, None)
@@ -313,7 +321,6 @@ def _confirm(category, config, chosen, existing, show_type_mark):
     content = "\n".join([
         "Rows: {0} types of family '{1}'".format(len(chosen), config["family_name"]),
         "Existing legend: {0}".format(existing.Name if existing is not None else "None, a new one will be made"),
-        "Template legend: {0}".format(config["template_legend_name"]),
         "Scale: 1:{0}".format(config["scale"]),
         "Width: {0:g} cm".format(round(_stored_width(existing, config) / 10.0, 1)),
         "Type Mark above symbols: {0}".format("Yes" if show_type_mark else "No"),
@@ -325,6 +332,17 @@ def _confirm(category, config, chosen, existing, show_type_mark):
         content=content,
     )
     return choice == "apply"
+
+
+def _active_sheet(doc):
+    from version_adapter import get_db
+    view = getattr(doc, "ActiveView", None)
+    try:
+        if view is not None and view.ViewType == get_db().ViewType.DrawingSheet:
+            return view
+    except Exception:
+        pass
+    return None
 
 
 def _stored_width(existing, config):
