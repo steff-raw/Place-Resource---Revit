@@ -1,0 +1,5 @@
+title: "Create / Update\nView Legend"
+tooltip: >
+  Make or update a legend of the types visible in the active view or sheet.
+author: Place Resource
+context: doc-project

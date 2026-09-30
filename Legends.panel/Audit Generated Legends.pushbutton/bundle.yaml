@@ -1,0 +1,5 @@
+title: "Audit Generated\nLegends"
+tooltip: >
+  Check each legend against the types visible in its view. Changes nothing.
+author: Place Resource
+context: doc-project

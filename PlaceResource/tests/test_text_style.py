@@ -1,0 +1,72 @@
+# -*- coding: utf-8 -*-
+"""Project settings and the legend text style. No Revit needed."""
+
+import os
+import sys
+import unittest
+from unittest import mock
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+LIB = os.path.abspath(os.path.join(HERE, "..", "lib"))
+if LIB not in sys.path:
+    sys.path.insert(0, LIB)
+
+import legend_component_service
+import project_settings
+import ui_service
+from errors import LegendOperationError
+
+
+class ProjectSettingsTests(unittest.TestCase):
+    def test_normalize_keeps_text_type_and_families(self):
+        data = project_settings.normalize({
+            "text_type": "  2.5mm Arial ",
+            "masters": {"Walls": "abc"},
+            "families": {"Walls": " Office Wall Symbols ", "Doors": "", "Floors": 3},
+        })
+        self.assertEqual(data, {"text_type": "2.5mm Arial", "families": {"Walls": "Office Wall Symbols"}})
+        self.assertEqual(project_settings.normalize(None), {"text_type": None, "families": {}})
+        self.assertIn("not set", project_settings.describe({}))
+
+
+class FamilyAssignmentTests(unittest.TestCase):
+    def test_picked_family_replaces_default_name(self):
+        from collections import OrderedDict
+        from legend_library import with_families
+        settings = {"categories": OrderedDict([
+            ("Walls", {"name": "Walls", "family_name": "PR Legend - Walls"}),
+            ("Doors", {"name": "Doors", "family_name": "PR Legend - Doors"}),
+        ])}
+        result = with_families(settings, {"Walls": "Office Wall Symbols"})
+        self.assertEqual(result["categories"]["Walls"]["family_name"], "Office Wall Symbols")
+        self.assertEqual(result["categories"]["Doors"]["family_name"], "PR Legend - Doors")
+        self.assertEqual(settings["categories"]["Walls"]["family_name"], "PR Legend - Walls")
+        self.assertEqual(list(result["categories"]), ["Walls", "Doors"])
+
+
+class TextStyleTests(unittest.TestCase):
+    def test_saved_style_wins_then_settings_file(self):
+        def _find(doc, name):
+            if name == "Missing":
+                raise LegendOperationError("missing")
+            return name
+
+        with mock.patch.object(legend_component_service, "find_text_type", side_effect=_find), \
+                mock.patch.object(project_settings, "text_type_name", return_value="Office Text"):
+            self.assertEqual(legend_component_service.resolve_text_type(None, "2.5mm Arial"), "Office Text")
+        with mock.patch.object(legend_component_service, "find_text_type", side_effect=_find), \
+                mock.patch.object(project_settings, "text_type_name", return_value="Missing"):
+            self.assertEqual(legend_component_service.resolve_text_type(None, "2.5mm Arial"), "2.5mm Arial")
+
+    def test_picker_only_when_needed(self):
+        with mock.patch.object(legend_component_service, "text_types_resolve", return_value=True), \
+                mock.patch.object(ui_service, "choose_text_type") as picker:
+            self.assertTrue(ui_service.ensure_text_style(None, ["2.5mm Arial"]))
+            picker.assert_not_called()
+        with mock.patch.object(legend_component_service, "text_types_resolve", return_value=False), \
+                mock.patch.object(ui_service, "choose_text_type", return_value=None):
+            self.assertFalse(ui_service.ensure_text_style(None, ["2.5mm Arial"]))
+
+
+if __name__ == "__main__":
+    unittest.main()

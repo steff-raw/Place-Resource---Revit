@@ -1,0 +1,6 @@
+title: "Place Legend\non Sheet"
+tooltip: >
+  Choose the legends a sheet shows and place them. A legend already on the
+  sheet is not placed twice.
+author: Place Resource
+context: doc-project

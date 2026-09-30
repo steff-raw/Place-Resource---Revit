@@ -1,0 +1,5 @@
+title: "Update All\nGenerated Legends"
+tooltip: >
+  Update every legend made by this tool. Unchanged legends are skipped.
+author: Place Resource
+context: doc-project
