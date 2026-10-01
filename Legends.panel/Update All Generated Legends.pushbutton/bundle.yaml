@@ -1,5 +1,6 @@
 title: "Update All\nGenerated Legends"
 tooltip: >
-  Update every legend made by this tool. Unchanged legends are skipped.
+  Redraw every legend made by this tool in place: same width, same position.
+  Hand edits inside these legends are replaced.
 author: Place Resource
 context: doc-project

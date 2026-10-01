@@ -15,9 +15,7 @@ from identity import (
     ROLE_LIBRARY_LEGEND,
     build_library_element_payload,
     build_library_view_payload,
-    collect_managed_elements,
     content_hash,
-    delete_managed_elements,
     find_library_legend,
     iter_generated_legends,
     read_view_payload,
@@ -227,62 +225,120 @@ def sheet_codes(doc, sheet, config, library):
     return match_type_marks(library, marks)
 
 
-def update_all_library(doc, library_settings, only=None):
-    """``only(view, payload)``, when given, limits the update to the legends it returns True for.
+def tool_legends(doc, library_settings):
+    """Every legend this tool made: (view, payload or {}, category, sheet or None).
 
-Rebuild library legends whose rows changed. Graphic changes come from the family itself."""
+    Found by the data stored on the legend, or by its name following
+    sheet_output_name_pattern (e.g. "Walls LEGEND - A-D-114-0").
+    """
+    from legend_library import match_legend_name
+    from placement_service import all_sheets
+    found = []
+    seen = set()
+    for view, payload in iter_generated_legends(doc, ROLE_LIBRARY_LEGEND):
+        seen.add(element_id_value(view.Id))
+        found.append((view, payload, payload.get("category"), _resolve_sheet(doc, payload)))
+    categories = list(library_settings["categories"].keys())
+    patterns = sorted(set(config["sheet_output_name_pattern"] for config in library_settings["categories"].values()))
+    sheets = None
+    DB = get_db()
+    for view in DB.FilteredElementCollector(doc).OfClass(DB.View):
+        try:
+            if view.IsTemplate or view.ViewType != DB.ViewType.Legend or element_id_value(view.Id) in seen:
+                continue
+        except Exception:
+            continue
+        for pattern in patterns:
+            match = match_legend_name(view.Name, categories, pattern)
+            if match is None:
+                continue
+            if sheets is None:
+                sheets = dict(((getattr(sheet, "SheetNumber", "") or "").lower(), sheet) for sheet in all_sheets(doc))
+            found.append((view, {}, match[0], sheets.get(match[1].lower())))
+            break
+    return found
+
+
+def update_all_library(doc, library_settings, only=None):
+    """Rebuild every legend this tool made, in place.
+
+    Each legend is cleared and redrawn, so hand edits are replaced. Width,
+    headings and the Type Mark choice stored on the legend are kept, and every
+    viewport keeps its top-left corner on the sheet. ``only(view, payload)``,
+    when given, limits the update.
+    """
     library_settings = project_library(doc, library_settings)
     summary = {"updated": [], "unchanged": [], "skipped": [], "failed": [], "warnings": []}
-    for view, payload in list(iter_generated_legends(doc, ROLE_LIBRARY_LEGEND)):
+    for view, payload, category, sheet in tool_legends(doc, library_settings):
         if only is not None and not only(view, payload):
             continue
-        category = payload.get("category")
         config = library_settings["categories"].get(category)
         if config is None:
             summary["skipped"].append({"legend": view.Name, "reason": "Category '{0}' is not in the settings.".format(category)})
             continue
-        sheet = _resolve_sheet(doc, payload)
-        if payload.get("sheet_unique_id") and sheet is None:
-            summary["skipped"].append({"legend": view.Name, "reason": "Its sheet was deleted."})
+        if sheet is None and (payload.get("sheet_unique_id") or not payload):
+            summary["skipped"].append({"legend": view.Name, "reason": "Its sheet was not found."})
             continue
         library, problems = family_entries(doc, config)
         if problems:
             summary["skipped"].append({"legend": view.Name, "reason": " ".join(problems)})
             continue
-        codes = payload.get("codes") or []
         if sheet is not None and config.get("revit_category"):
             # Sheet legends follow the Type Marks in the views on the sheet.
             codes = sheet_codes(doc, sheet, config, library)
+        elif payload.get("codes"):
+            codes = payload["codes"]
+        else:
+            codes = [entry.code for entry in library]
         gone = missing_codes(library, codes)
         if gone:
             summary["warnings"].append("'{0}': types no longer in family '{1}': {2}.".format(
                 view.Name, config["family_name"], ", ".join(gone)
             ))
         entries = entries_for_codes(library, codes)
-        width_mm = payload.get("width_mm")
-        show_type_mark = payload.get("show_type_mark")
-        headings = payload.get("headings")
-        if payload.get("source") == SOURCE_FAMILY and payload.get("content_hash") == library_hash(
-                category, config, entries, width_mm, show_type_mark, headings):
-            summary["unchanged"].append({"legend": view.Name})
+        if not entries:
+            summary["skipped"].append({"legend": view.Name, "reason": "No matching types on its sheet."})
             continue
-        report = build_library_legend(doc, config, entries, sheet=sheet, legend_view=view,
-                                      width_mm=width_mm, show_type_mark=show_type_mark, headings=headings)
+        width_mm = payload.get("width_mm") or _placed_width_mm(doc, view)
+        headings = payload.get("headings")
+        if headings is None:
+            from project_settings import saved_headings
+            headings = clean_headings(saved_headings(doc, category), default_headings(config))
+        report = build_library_legend(doc, config, entries, sheet=sheet, legend_view=view, width_mm=width_mm,
+                                      show_type_mark=payload.get("show_type_mark"), headings=headings)
         target = summary["failed"] if report["status"] == "failed" else summary["updated"]
         target.append({"legend": view.Name, "status": report["status"], "errors": report["errors"]})
         summary["warnings"].extend(report["warnings"])
     return summary
 
 
+def _placed_width_mm(doc, view):
+    """Width of the legend's viewport on a sheet, in mm, or None when it is not placed."""
+    for _viewport_id, left, _top, right in _viewport_extents(doc, view):
+        return internal_to_mm(right - left)
+    return None
+
+
+def _viewport_extents(doc, view):
+    DB = get_db()
+    target = element_id_value(view.Id)
+    for viewport in DB.FilteredElementCollector(doc).OfClass(DB.Viewport):
+        try:
+            if element_id_value(viewport.ViewId) != target:
+                continue
+            outline = viewport.GetBoxOutline()
+            yield viewport.Id, outline.MinimumPoint.X, outline.MaximumPoint.Y, outline.MaximumPoint.X
+        except Exception:
+            continue
+
+
 def audit_library(doc, library_settings):
     """Read-only comparison of library legends with their families and the model."""
     library_settings = project_library(doc, library_settings)
     rows = []
-    for view, payload in iter_generated_legends(doc, ROLE_LIBRARY_LEGEND):
-        category = payload.get("category")
+    for view, payload, category, sheet in tool_legends(doc, library_settings):
         config = library_settings["categories"].get(category)
         codes = payload.get("codes") or []
-        sheet = _resolve_sheet(doc, payload)
         if config is not None:
             library, problems = family_entries(doc, config)
         else:
@@ -320,7 +376,6 @@ def audit_library(doc, library_settings):
 
 
 def _run(doc, config, entries, sheet, existing, resolved, report, width_mm, show_type_mark, headings):
-    from legend_service import _capture_viewports, _restore_viewports
     DB = get_db()
     category = config["name"]
     codes = [entry.code for entry in entries]
@@ -332,12 +387,11 @@ def _run(doc, config, entries, sheet, existing, resolved, report, width_mm, show
                 view = _new_legend(doc, resolved["template"], config, sheet, report)
             else:
                 view = existing
-                viewports = _capture_viewports(doc, view)
-                doomed = [element for element, payload in collect_managed_elements(doc, view)
-                          if payload.get("role") in LIBRARY_ROLES]
-                if doomed:
-                    step("removing {0} old legend elements".format(len(doomed)))
-                    delete_managed_elements(doc, doomed)
+                viewports = _capture_corners(doc, view)
+                # The whole legend is redrawn, so hand edits (moved symbols, text, lines) are replaced too.
+                removed = _clear_legend(doc, view)
+                if removed:
+                    step("removed {0} old legend elements".format(removed))
             payload = build_library_view_payload(category, codes, sheet, library_hash(category, config, entries, width_mm, show_type_mark, headings))
             payload["source"] = SOURCE_FAMILY
             payload["width_mm"] = width_mm
@@ -383,11 +437,72 @@ def _run(doc, config, entries, sheet, existing, resolved, report, width_mm, show
         with TransactionContext(doc, "Draw legend table") as transaction:
             step("arranging rows and drawing borders")
             _arrange(doc, view, config, placed, headers, texts, width_mm, report)
-            if viewports:
-                _restore_viewports(doc, viewports, report)
             doc.Regenerate()
+            if viewports:
+                _restore_corners(doc, viewports, report)
+                doc.Regenerate()
         report["warnings"].extend(transaction.warnings)
     return view
+
+
+# Categories of view-owned elements that make up a legend's contents.
+_CONTENT_CATEGORIES = (
+    "OST_Lines", "OST_TextNotes", "OST_GenericAnnotation", "OST_DetailComponents", "OST_LegendComponents",
+    "OST_Dimensions", "OST_IOSDetailGroups", "OST_RevisionClouds", "OST_InsulationLines", "OST_RasterImages",
+)
+
+
+def _clear_legend(doc, view):
+    """Delete everything drawn in the legend view. Returns how many elements were deleted."""
+    from System.Collections.Generic import List
+    DB = get_db()
+    allowed = set()
+    for name in _CONTENT_CATEGORIES:
+        built_in = getattr(DB.BuiltInCategory, name, None)
+        if built_in is not None:
+            allowed.add(element_id_value(DB.ElementId(built_in)))
+    ids = []
+    for element in DB.FilteredElementCollector(doc).WherePasses(DB.ElementOwnerViewFilter(view.Id)):
+        category = getattr(element, "Category", None)
+        if category is not None and element_id_value(category.Id) in allowed:
+            ids.append(element.Id)
+    if ids:
+        doc.Delete(List[DB.ElementId](ids))
+    return len(ids)
+
+
+def _capture_corners(doc, view):
+    """(viewport id, top-left of its box on the sheet) for every viewport showing the legend."""
+    DB = get_db()
+    target = element_id_value(view.Id)
+    captured = []
+    for viewport in DB.FilteredElementCollector(doc).OfClass(DB.Viewport):
+        try:
+            if element_id_value(viewport.ViewId) != target:
+                continue
+            outline = viewport.GetBoxOutline()
+            captured.append((viewport.Id, outline.MinimumPoint.X, outline.MaximumPoint.Y))
+        except Exception:
+            continue
+    return captured
+
+
+def _restore_corners(doc, captured, report):
+    """Move each viewport back so its top-left is where it was. Width is fixed, so only the bottom moves."""
+    DB = get_db()
+    for viewport_id, left, top in captured:
+        viewport = doc.GetElement(viewport_id)
+        if viewport is None:
+            continue
+        try:
+            outline = viewport.GetBoxOutline()
+            centre = viewport.GetBoxCenter()
+            dx = left - outline.MinimumPoint.X
+            dy = top - outline.MaximumPoint.Y
+            if abs(dx) > 1e-9 or abs(dy) > 1e-9:
+                viewport.SetBoxCenter(DB.XYZ(centre.X + dx, centre.Y + dy, centre.Z))
+        except Exception as ex:
+            report["warnings"].append("A legend could not be kept in its place on the sheet. {0}".format(ex))
 
 
 def _place_symbol(doc, view, symbol, origin, code):

@@ -171,9 +171,9 @@ def print_library_batch(summary):
 
 def print_library_audit(rows):
     """Print the read-only audit of library legends."""
-    _print_md("# Library legend audit\n")
+    _print_md("# Legend audit\n")
     if not rows:
-        _print_md("No library legends were found.")
+        _print_md("No legends made by this tool were found. They are named like 'Walls LEGEND - A-101'.")
     for row in rows:
         _print_md("\n".join([
             "## {0}".format(row["legend"]),

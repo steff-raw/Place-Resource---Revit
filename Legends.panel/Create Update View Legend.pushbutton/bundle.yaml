@@ -1,6 +1,0 @@
-title: "Create / Update\nView Legend"
-tooltip: >
-  On a sheet: update its Legend Setup legends, or make one. In a plan, section
-  or elevation: type legend from legends.json.
-author: Place Resource
-context: doc-project

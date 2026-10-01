@@ -1,5 +1,5 @@
 title: "Audit Generated\nLegends"
 tooltip: >
-  Check each legend against the types visible in its view. Changes nothing.
+  List the legends made by this tool and what they show. Changes nothing.
 author: Place Resource
 context: doc-project

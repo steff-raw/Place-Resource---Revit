@@ -335,6 +335,23 @@ class MarkMatchTests(unittest.TestCase):
         self.assertEqual(L.match_type_marks(entries, ["iws - 105", "IWS-101", "EWS-302"]), ["Partition A", "IWS-105"])
 
 
+class LegendNameTests(unittest.TestCase):
+    PATTERN = "{category} LEGEND - {sheet_number}"
+
+    def test_tool_legend_names_are_recognised(self):
+        categories = ["Walls", "Fire Strategy", "Doors"]
+        self.assertEqual(L.match_legend_name("Walls LEGEND - A-D-114-0", categories, self.PATTERN), ("Walls", "A-D-114-0"))
+        self.assertEqual(L.match_legend_name("walls legend - A-101 (2)", categories, self.PATTERN), ("Walls", "A-101"))
+        self.assertEqual(L.match_legend_name("Fire Strategy LEGEND - F-01", categories, self.PATTERN), ("Fire Strategy", "F-01"))
+
+    def test_other_legends_are_ignored(self):
+        categories = ["Walls"]
+        self.assertIsNone(L.match_legend_name("Walls LEGEND", categories, self.PATTERN))
+        self.assertIsNone(L.match_legend_name("Partition Types", categories, self.PATTERN))
+        self.assertIsNone(L.match_legend_name("Ceilings LEGEND - A-101", categories, self.PATTERN))
+        self.assertIsNone(L.match_legend_name("Walls LEGEND - A-101", categories, "{category} LEGEND"))
+
+
 class TableTests(unittest.TestCase):
     def test_title_header_and_rows(self):
         table = L.table_layout(100.0, 10.0, 1.0, 4.0, 3.0, [5.0, 2.0])

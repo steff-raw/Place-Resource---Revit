@@ -76,39 +76,51 @@ def choose_family(doc, category, config):
     return chosen
 
 
-def run_setup(doc, library_settings, uidoc=None):
-    """Legend Setup: category and family, then the sheet legend. Returns the report or None.
+TEXT_STYLE_ROW = "Legend text style"
 
-    Uses the open sheet, or asks which sheet when another view is open. The legend
-    is named with the sheet number and placed on that sheet.
+
+def run_setup(doc, library_settings):
+    """Legend Setup: the text style and the symbol family for each legend category.
+
+    Shows one list. Pick a row to change it; the list comes back until Close.
+    Everything is saved in the model.
     """
-    if uidoc is None:
-        from pyrevit import revit
-        uidoc = revit.uidoc
-    category = choose_category(doc, library_settings)
-    if category is None:
-        return None
-    config = dict(project_library(doc, library_settings)["categories"][category])
-    family = choose_family(doc, category, config)
-    if family is None:
-        return None
-    sheet = _active_sheet(doc) or _choose_sheet(doc, category)
-    if sheet is None:
-        return None
-    # The family pick is saved in the model, so the sheet flow picks it up.
-    return run_sheet_legend(doc, uidoc, sheet, category, library_settings)
+    from project_settings import read
+    while True:
+        library = project_library(doc, library_settings)
+        names = list(library["categories"].keys())
+        current = read(doc)["text_type"]
+        labels = [TEXT_STYLE_ROW] + names
+        details = [current or "not set"]
+        for name in names:
+            family = library["categories"][name]["family_name"]
+            details.append(family if find_family(doc, family) is not None else "{0} (not loaded)".format(family))
+        index = dialogs.choose_from_list(
+            "Legend Setup", labels,
+            prompt="Pick a row to change it, or press Close when done. Saved in this model.",
+            button_text="Change", details=details, cancel_text="Close",
+        )
+        if index is None:
+            return
+        if index == 0:
+            from ui_service import choose_text_type
+            choose_text_type(doc)
+            continue
+        category = names[index - 1]
+        choose_family(doc, category, dict(library["categories"][category]))
 
 
-def _choose_sheet(doc, category):
+def choose_sheet(doc):
+    """Pick a sheet from all sheets in the model. Returns the sheet, or None when cancelled."""
     from placement_service import all_sheets, sheet_label
     sheets = all_sheets(doc)
     if not sheets:
-        dialogs.alert("This model has no sheets.", title="Legend Setup")
+        dialogs.alert("This model has no sheets.", title="Place Legend on Sheet")
         return None
     index = dialogs.choose_from_list(
-        "{0} legend sheet".format(category),
+        "Pick the sheet",
         [sheet_label(sheet) for sheet in sheets],
-        prompt="Pick the sheet for the {0} legend. Tip: open the sheet first to skip this step.".format(category),
+        prompt="Pick the sheet for the legends. Tip: open the sheet first to skip this step.",
         button_text="Next",
     )
     return None if index is None else sheets[index]

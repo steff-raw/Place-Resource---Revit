@@ -274,6 +274,26 @@ def clean_headings(values, fallback):
     return result
 
 
+def match_legend_name(name, categories, pattern):
+    """Read a sheet legend name made from ``pattern``: returns (category, sheet number) or None.
+
+    "Walls LEGEND - A-D-114-0" with pattern "{category} LEGEND - {sheet_number}" gives
+    ("Walls", "A-D-114-0"). A " (2)" style suffix added by Revit for duplicate names is allowed.
+    """
+    import re
+    if not name or "{sheet_number}" not in pattern:
+        return None
+    for category in sorted(categories, key=len, reverse=True):
+        regex = re.escape(pattern)
+        regex = regex.replace(re.escape("{category}"), re.escape(category))
+        regex = regex.replace(re.escape("{sheet_number}"), "(?P<number>.+?)")
+        regex = regex.replace(re.escape("{sheet_name}"), ".+?")
+        found = re.match("^" + regex + r"(?: \(\d+\))?$", name.strip(), re.IGNORECASE)
+        if found:
+            return category, found.group("number").strip()
+    return None
+
+
 def table_layout(width, graphic_width, padding, title_height, header_height, row_heights):
     """Lay out a bordered legend table, top at y = 0, growing down (y negative).
 
