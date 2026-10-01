@@ -127,6 +127,60 @@ def choose_from_list(title, labels, prompt=None, button_text="Select", selected_
         form.Dispose()
 
 
+STATE_COLOURS = {"ok": (0, 128, 0), "missing": (200, 0, 0)}
+
+
+def choose_from_groups(title, groups, prompt=None, button_text="Select", cancel_text="Cancel"):
+    """Pick one row from a list split into titled groups, each row in its own colour.
+
+    ``groups`` is a list of (group title, rows); each row is (text, state) where state is
+    "ok" (green), "missing" (red) or None (default colour). The group titles are drawn
+    with a line under them, which separates the groups. Returns the index of the row
+    counted across all groups, or None when cancelled. Uses a ListView, which colours
+    rows without any Python event handler.
+    """
+    _load_winforms()
+    from System.Drawing import Color
+    from System.Windows.Forms import (
+        ColumnHeaderStyle, DialogResult, ListView, ListViewGroup, ListViewItem, View,
+    )
+    view = ListView()
+    view.View = View.Details
+    view.HeaderStyle = getattr(ColumnHeaderStyle, "None")  # "None" is a Python keyword
+    view.FullRowSelect = True
+    view.MultiSelect = False
+    view.HideSelection = False
+    view.ShowGroups = True
+    form = _build_form(title, prompt or "Select one row, then press {0}.".format(button_text), button_text, view,
+                       cancel_text=cancel_text)
+    factor = _dpi_factor(form)
+    view.Columns.Add("", scaled(BASE_WIDTH - 60, factor))
+    first = None
+    for group_title, rows in groups:
+        group = ListViewGroup(group_title)
+        view.Groups.Add(group)
+        for text, state in rows:
+            item = ListViewItem(text, group)
+            colour = STATE_COLOURS.get(state)
+            if colour is not None:
+                item.ForeColor = Color.FromArgb(*colour)
+            view.Items.Add(item)
+            if first is None:
+                first = item
+    if first is None:
+        form.Dispose()
+        return None
+    first.Selected = True
+    first.Focused = True
+    try:
+        trail_step("showing list: {0}".format(title))
+        if form.ShowDialog() != DialogResult.OK or view.SelectedIndices.Count == 0:
+            return None
+        return int(view.SelectedIndices[0])
+    finally:
+        form.Dispose()
+
+
 def choose_many_from_list(title, labels, preselected=None, prompt=None, button_text="OK", details=None):
     """Tick several entries in a checklist. Returns the ticked indexes in list order, or None when cancelled.
 
