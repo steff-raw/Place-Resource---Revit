@@ -98,7 +98,8 @@ def row_labels(labels, details=None):
     return rows
 
 
-def choose_from_list(title, labels, prompt=None, button_text="Select", selected_index=0, details=None):
+def choose_from_list(title, labels, prompt=None, button_text="Select", selected_index=0, details=None,
+                     cancel_text="Cancel"):
     """Pick one entry from a list. Returns its index, or None when cancelled.
 
     ``details`` is an optional list of one-line explanations shown after each label.
@@ -114,7 +115,8 @@ def choose_from_list(title, labels, prompt=None, button_text="Select", selected_
     for row in rows:
         box.Items.Add(row)
     box.SelectedIndex = selected_index if selected_index is not None and 0 <= selected_index < len(rows) else 0
-    form = _build_form(title, prompt or "Select one item, then press {0}.".format(button_text), button_text, box)
+    form = _build_form(title, prompt or "Select one item, then press {0}.".format(button_text), button_text, box,
+                       cancel_text=cancel_text)
     try:
         trail_step("showing list: {0}".format(title))
         result = form.ShowDialog()
@@ -153,7 +155,7 @@ def choose_many_from_list(title, labels, preselected=None, prompt=None, button_t
         form.Dispose()
 
 
-def _build_form(title, prompt, button_text, box, compact=False):
+def _build_form(title, prompt, button_text, box, compact=False, cancel_text="Cancel"):
     """A resizable window: wrapped prompt on top, ``box`` filling the middle, OK/Cancel at the bottom.
 
     Sizes are given at 96 dpi and scaled to the screen, because Revit is DPI-aware and
@@ -203,7 +205,7 @@ def _build_form(title, prompt, button_text, box, compact=False):
     buttons.Padding = Padding(scaled(8, factor))
 
     cancel = Button()
-    cancel.Text = "Cancel"
+    cancel.Text = cancel_text
     cancel.DialogResult = DialogResult.Cancel
     accept = Button()
     accept.Text = button_text

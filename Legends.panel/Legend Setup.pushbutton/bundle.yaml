@@ -1,6 +1,6 @@
 title: "Legend\nSetup"
 tooltip: >
-  Pick a category and its symbol family, tick the types, and a legend is made
-  with one symbol per type.
+  Set the legend text style and the symbol family for each legend category.
+  Saved in this model.
 author: Place Resource
 context: doc-project

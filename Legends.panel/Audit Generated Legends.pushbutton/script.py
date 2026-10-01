@@ -7,7 +7,7 @@ This command does not start a transaction.
 """
 
 __title__ = "Audit Generated\nLegends"
-__doc__ = "Report missing, extra, and overlapping legend entries without changing the model."
+__doc__ = "List the legends made by this tool and what they show. Changes nothing."
 __author__ = "Place Resource"
 
 import os
@@ -52,13 +52,11 @@ _find_lib()
 
 from pyrevit import revit
 
-from audit_service import audit_legends
-from configuration import load_settings
 from errors import LegendToolError
 from logging_service import get_logger
 from legend_library import load_library_settings
 from library_legend_service import audit_library
-from reporting import alert_error, print_audit, print_library_audit
+from reporting import alert_error, print_library_audit
 from validation import assert_project_document
 
 LOGGER = get_logger("audit_generated_legends")
@@ -68,15 +66,7 @@ def main():
     """Print a read-only audit of every legend made by this tool."""
     doc = revit.doc
     assert_project_document(doc)
-    settings = load_settings()
-    print_audit(audit_legends(doc, settings))
-    try:
-        library_settings = load_library_settings()
-    except LegendToolError as error:
-        print_library_audit([])
-        LOGGER.warning("Library legends were not audited: %s", error)
-        return
-    print_library_audit(audit_library(doc, library_settings))
+    print_library_audit(audit_library(doc, load_library_settings()))
 
 
 if __name__ == "__main__":

@@ -518,7 +518,9 @@ def find_template_legend(doc, template_name):
     if not matches:
         raise LegendOperationError(
             "Legend '{0}' was not found. Make a legend view with that exact name and put one legend "
-            "component in it. (This is a legend view, not a view template.)".format(template_name)
+            "component in it. (This is a legend view, not a view template.)\n\n"
+            "This button makes type legends from legends.json. For legends made with Legend Setup, "
+            "use Legend Setup, Place Legend on Sheet or Update All Generated Legends.".format(template_name)
         )
     if len(matches) > 1:
         raise LegendOperationError(

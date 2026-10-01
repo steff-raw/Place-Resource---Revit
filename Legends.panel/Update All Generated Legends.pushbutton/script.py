@@ -1,12 +1,12 @@
 #! python3
 # -*- coding: utf-8 -*-
-"""Update every legend made by this tool when its visible types have changed.
+"""Rebuild every legend made by this tool, in place.
 
 Requires the pyRevit CPython 3 engine. IronPython is not supported.
 """
 
 __title__ = "Update All\nGenerated Legends"
-__doc__ = "Update all legends made by this tool."
+__doc__ = "Redraw every legend made by this tool in place: same width, same position."
 __author__ = "Place Resource"
 
 import os
@@ -51,15 +51,12 @@ _find_lib()
 
 from pyrevit import revit
 
-from configuration import load_settings
 from dialogs import ask_yes_no
 from errors import LegendToolError
-from identity import ROLE_LIBRARY_LEGEND, iter_generated_legends
 from legend_library import load_library_settings
-from legend_service import update_all
-from library_legend_service import update_all_library
+from library_legend_service import project_library, tool_legends, update_all_library
 from logging_service import get_logger
-from reporting import alert_error, print_batch, print_library_batch
+from reporting import alert_error, print_library_batch
 from ui_service import ensure_text_style
 from validation import assert_project_document
 
@@ -67,73 +64,46 @@ LOGGER = get_logger("update_all_generated_legends")
 
 
 def main():
-    """Refresh view/sheet type legends and library legends. Deleted sources are reported and skipped."""
+    """Rebuild every legend this tool made, in place."""
     doc = revit.doc
     assert_project_document(doc)
-    settings = load_settings()
-    legends = list(iter_generated_legends(doc))
-    library_legends = list(iter_generated_legends(doc, ROLE_LIBRARY_LEGEND))
-    if not legends and not library_legends:
-        raise LegendToolError("No legends made by this tool in this model.")
+    library_settings = load_library_settings()
+    legends = tool_legends(doc, project_library(doc, library_settings))
+    if not legends:
+        raise LegendToolError(
+            "No legends made by this tool in this model. They are named like 'Walls LEGEND - A-101'."
+        )
     accepted = ask_yes_no(
         "Update All Generated Legends",
-        "Update {0} type legends and {1} library legends?".format(len(legends), len(library_legends)),
-        content="Unchanged legends are skipped. Viewports stay where they are. "
-                "Legends whose view or sheet was deleted are listed and skipped. "
-                "Library legends are rebuilt from the current symbol families.",
+        "Update {0} legends?".format(len(legends)),
+        content="Each legend is redrawn from its symbol family and the Type Marks on its sheet. "
+                "Anything changed by hand inside these legends is replaced. "
+                "Width, headings and position on the sheet stay the same.",
         yes_label="Update the legends",
         no_label="Cancel",
     )
     if not accepted:
         return
-    if not ensure_text_style(doc, _text_type_names(settings, legends)):
+    if not ensure_text_style(doc, _text_type_names(library_settings)):
         return
-    failed = 0
-    if legends:
-        allow_delete = True
-        if _any_definition_confirms(settings):
-            allow_delete = ask_yes_no(
-                "Remove old legend rows",
-                "Remove rows for types that are no longer visible?",
-                content="Notes you added by hand are never removed.",
-                yes_label="Remove them",
-                no_label="Keep them",
-            )
-        summary = update_all(doc, settings, {
-            "allow_delete": allow_delete,
-            "skip_if_unchanged": True,
-        })
-        print_batch(summary)
-        failed += len(summary.get("failed") or [])
-    if library_legends:
-        library_settings = load_library_settings()
-        library_summary = update_all_library(doc, library_settings)
-        print_library_batch(library_summary)
-        failed += len(library_summary.get("failed") or [])
-    if failed:
+    summary = update_all_library(doc, library_settings)
+    print_library_batch(summary)
+    failed = len(summary.get("failed") or [])
+    skipped = len(summary.get("skipped") or [])
+    if failed or skipped:
         alert_error(
             "Update All Generated Legends",
-            "{0} legends failed, see the output window. "
-            "The others were updated.".format(failed),
+            "{0} failed and {1} skipped, see the output window. The others were updated.".format(failed, skipped),
         )
 
 
-def _text_type_names(settings, legends):
-    """Text types the type legends in this model need, from the settings file."""
-    used = set(payload.get("legend_definition_id") for _view, payload in legends)
-    names = []
-    for definition in settings["data"]["legend_definitions"]:
-        if definition["id"] in used:
-            names.extend([definition["styles"]["text_note_type"], definition["styles"]["header_text_note_type"]])
-    return names
-
-
-def _any_definition_confirms(settings):
-    for definition in settings["data"]["legend_definitions"]:
-        update = definition.get("update") or {}
-        if update.get("remove_unused_entries") and update.get("confirm_before_deleting"):
-            return True
-    return False
+def _text_type_names(library_settings):
+    names = set()
+    for config in library_settings["categories"].values():
+        names.add(config["styles"]["text_type"])
+        if config["styles"].get("show_heading"):
+            names.add(config["styles"]["heading_text_type"])
+    return sorted(names)
 
 
 if __name__ == "__main__":

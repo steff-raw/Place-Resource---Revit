@@ -76,84 +76,54 @@ def choose_family(doc, category, config):
     return chosen
 
 
-def choose_rows(doc, config, preselected_codes, prompt):
-    """Return the ticked entries (family order), or None when cancelled or the family is unusable."""
-    entries, problems = family_entries(doc, config)
-    if problems:
-        dialogs.alert("\n".join(problems), title="Legend library")
-        return None
-    if not entries:
-        dialogs.alert(
-            "Family '{0}' has no types. Add one type per Type Mark, named after it (e.g. IWS-105).".format(
-                config["family_name"]
-            ),
-            title="Legend library",
-        )
-        return None
-    wanted = set(code.strip().lower() for code in preselected_codes or [])
-    preselected = [index for index, entry in enumerate(entries) if entry.code.strip().lower() in wanted]
-    indexes = dialogs.choose_many_from_list(
-        "{0} legend rows".format(config["name"]),
-        [entry.label() for entry in entries],
-        preselected=preselected,
-        prompt=prompt,
-        button_text="Continue",
-    )
-    if indexes is None:
-        return None
-    return [entries[index] for index in indexes]
+TEXT_STYLE_ROW = "Legend text style"
 
 
-def run_setup(doc, library_settings, uidoc=None):
-    """Legend Setup: category, family, rows, then create or update the legend. Returns the report or None.
+def run_setup(doc, library_settings):
+    """Legend Setup: the text style and the symbol family for each legend category.
 
-    With a sheet open, the legend is made for that sheet (named with its sheet
-    number) and placed on it. Otherwise it is the category legend, not tied to a sheet.
+    Shows one list. Pick a row to change it; the list comes back until Close.
+    Everything is saved in the model.
     """
-    category = choose_category(doc, library_settings)
-    if category is None:
+    from project_settings import read
+    while True:
+        library = project_library(doc, library_settings)
+        names = list(library["categories"].keys())
+        current = read(doc)["text_type"]
+        labels = [TEXT_STYLE_ROW] + names
+        details = [current or "not set"]
+        for name in names:
+            family = library["categories"][name]["family_name"]
+            details.append(family if find_family(doc, family) is not None else "{0} (not loaded)".format(family))
+        index = dialogs.choose_from_list(
+            "Legend Setup", labels,
+            prompt="Pick a row to change it, or press Close when done. Saved in this model.",
+            button_text="Change", details=details, cancel_text="Close",
+        )
+        if index is None:
+            return
+        if index == 0:
+            from ui_service import choose_text_type
+            choose_text_type(doc)
+            continue
+        category = names[index - 1]
+        choose_family(doc, category, dict(library["categories"][category]))
+
+
+def choose_sheet(doc):
+    """Pick a sheet from all sheets in the model. Returns the sheet, or None when cancelled."""
+    from placement_service import all_sheets, sheet_label
+    sheets = all_sheets(doc)
+    if not sheets:
+        dialogs.alert("This model has no sheets.", title="Place Legend on Sheet")
         return None
-    config = dict(project_library(doc, library_settings)["categories"][category])
-    family = choose_family(doc, category, config)
-    if family is None:
-        return None
-    sheet = _active_sheet(doc)
-    if sheet is not None and uidoc is not None:
-        # The family pick is saved in the model, so the sheet flow picks it up.
-        return run_sheet_legend(doc, uidoc, sheet, category, library_settings)
-    config["family_name"] = family
-    trail.step("looking for an existing {0} legend".format(category))
-    existing = find_library_legend(doc, category, None)
-    stored = (read_view_payload(existing) or {}).get("codes") if existing is not None else None
-    if stored is None:
-        entries, _problems = family_entries(doc, config)
-        stored = [entry.code for entry in entries]
-    chosen = choose_rows(
-        doc, config, stored,
-        "Types of family '{0}'. {1}".format(
-            config["family_name"],
-            "Ticked: the rows already in '{0}'.".format(existing.Name) if existing is not None else "All types start ticked.",
-        ),
+    index = dialogs.choose_from_list(
+        "Pick the sheet",
+        [sheet_label(sheet) for sheet in sheets],
+        prompt="Pick the sheet for the legends. Tip: open the sheet first to skip this step.",
+        button_text="Next",
     )
-    if not chosen:
-        return None
-    show_type_mark = ask_type_mark(config, existing)
-    if show_type_mark is None:
-        return None
-    headings = ask_headings(doc, config, existing)
-    if headings is None:
-        return None
-    if not _confirm(category, config, chosen, existing, show_type_mark):
-        return None
-    if not _ensure_text(doc, config):
-        return None
-    trail.step("building legend for {0}".format(category))
-    report = build_library_legend(doc, config, chosen, sheet=None, legend_view=existing,
-                                  show_type_mark=show_type_mark, headings=headings)
-    print_library_report(report)
-    if report["status"] == "failed":
-        alert_error("Legend Setup", "\n".join(report["errors"]))
-    return report
+    return None if index is None else sheets[index]
 
 
 def run_sheet_legend(doc, uidoc, sheet, category, library_settings):
@@ -161,7 +131,7 @@ def run_sheet_legend(doc, uidoc, sheet, category, library_settings):
 
     For model categories (Walls, Doors, ...) the rows are the family types whose name
     matches a Type Mark in the views on the sheet, with no tick list. Other categories
-    (Fire Strategy, ...) have nothing to match, so the user ticks the rows.
+    (Fire Strategy, ...) have nothing to match, so every type of the family is used.
     """
     config = dict(project_library(doc, library_settings)["categories"][category])
     if find_family(doc, config["family_name"]) is None:
@@ -173,11 +143,7 @@ def run_sheet_legend(doc, uidoc, sheet, category, library_settings):
     if config.get("revit_category"):
         chosen = _rows_from_sheet(doc, sheet, config)
     else:
-        preselected = (read_view_payload(existing) or {}).get("codes") or [] if existing is not None else []
-        chosen = choose_rows(
-            doc, config, preselected,
-            "Types of family '{0}'. Tick the rows that apply to this sheet.".format(config["family_name"]),
-        )
+        chosen = _all_rows(doc, config)
     if not chosen:
         return None
     size = choose_width(uidoc, sheet, config, existing)
@@ -257,6 +223,22 @@ def choose_width(uidoc, sheet, config, existing):
         default = text
 
 
+def _all_rows(doc, config):
+    """Every type of the family, in family order. Shows a message and returns None when there are none."""
+    entries, problems = family_entries(doc, config)
+    if problems:
+        dialogs.alert("\n".join(problems), title="Legend library")
+        return None
+    if not entries:
+        dialogs.alert(
+            "Family '{0}' has no types. Add one type per Type Mark, named after it (e.g. IWS-105).".format(
+                config["family_name"]),
+            title="Legend library",
+        )
+        return None
+    return entries
+
+
 def _rows_from_sheet(doc, sheet, config):
     """Family entries matching the Type Marks in the sheet's views. Shows a message and returns None when none match."""
     from library_legend_service import sheet_codes
@@ -265,18 +247,36 @@ def _rows_from_sheet(doc, sheet, config):
     if problems:
         dialogs.alert("\n".join(problems), title="Legend library")
         return None
+    from collectors import sheet_source_views, type_marks_for_source
     trail.step("reading Type Marks in the views on the sheet")
     codes = sheet_codes(doc, sheet, config, entries)
     if not codes:
+        views = sheet_source_views(doc, sheet, config["source_view_types"])
+        marks = type_marks_for_source(doc, sheet, config["revit_category"], config["source_view_types"])
         dialogs.alert(
-            "No {0} in the views on sheet {1} has a Type Mark that matches a type of family '{2}'.\n\n"
-            "Family type names must be the Type Marks exactly, e.g. IWS-105.".format(
-                config["name"].lower(), sheet_label(sheet), config["family_name"]
+            "None of the {0} Type Marks on sheet {1} matches a type of family '{2}'.\n\n"
+            "Views checked: {3}\n\n"
+            "Type Marks found: {4}\n\n"
+            "Family types: {5}".format(
+                config["name"].lower(), sheet_label(sheet), config["family_name"],
+                _short_list([view.Name for view in views], "none (no {0} on this sheet)".format(
+                    " / ".join(config["source_view_types"]))),
+                _short_list(marks, "none (the {0} in these views have no Type Mark)".format(config["name"].lower())),
+                _short_list([entry.code + (" ({0})".format(entry.mark) if entry.mark and entry.mark != entry.code else "")
+                             for entry in entries], "none"),
             ),
             title="{0} legend".format(config["name"]),
         )
         return None
     return entries_for_codes(entries, codes)
+
+
+def _short_list(items, empty_text, limit=15):
+    items = list(items)
+    if not items:
+        return empty_text
+    text = ", ".join(items[:limit])
+    return text + (" and {0} more".format(len(items) - limit) if len(items) > limit else "")
 
 
 def ask_headings(doc, config, existing):
@@ -377,23 +377,6 @@ def _ensure_text(doc, config):
         return True
     trail.step("checking text types: {0}".format(", ".join(names)))
     return ensure_text_style(doc, names)
-
-
-def _confirm(category, config, chosen, existing, show_type_mark):
-    content = "\n".join([
-        "Rows: {0} types of family '{1}'".format(len(chosen), config["family_name"]),
-        "Existing legend: {0}".format(existing.Name if existing is not None else "None, a new one will be made"),
-        "Scale: 1:{0}".format(config["scale"]),
-        "Width: {0:g} cm".format(round(_stored_width(existing, config) / 10.0, 1)),
-        "Type Mark above symbols: {0}".format("Yes" if show_type_mark else "No"),
-    ])
-    choice = dialogs.choose_command(
-        "Legend Setup",
-        "{0} the {1} legend?".format("Update" if existing is not None else "Create", category),
-        [("apply", "{0} the legend".format("Update" if existing is not None else "Create"))],
-        content=content,
-    )
-    return choice == "apply"
 
 
 def _active_sheet(doc):

@@ -20,6 +20,7 @@ DEFAULTS = {
     "family_name": "PR Legend - {category}",
     "description_parameter": "Legend_Description",
     "type_mark_visibility_parameter": "Legend_TypeMark_Visibility",
+    "type_mark_parameter": "Legend_TypeMark",
     "text_visibility_parameter": "Text_Visibility",
     "show_type_mark": True,
     "viewport_type_name": "No Title",
@@ -32,7 +33,7 @@ DEFAULTS = {
     "output_name_pattern": "{category} LEGEND",
     "sheet_output_name_pattern": "{category} LEGEND - {sheet_number}",
     "scale": 100,
-    "source_view_types": ["FloorPlan", "CeilingPlan", "Section", "Elevation"],
+    "source_view_types": ["FloorPlan", "CeilingPlan", "Section", "Elevation", "Detail"],
     "styles": {
         "heading_text_type": "2.5mm Arial Bold",
         "show_heading": True,
@@ -60,8 +61,9 @@ DEFAULTS = {
 class LibraryEntry(object):
     """One legend row: a type of the category's symbol family."""
 
-    def __init__(self, code, description="", symbol_id=None, symbol_unique_id=None):
+    def __init__(self, code, description="", symbol_id=None, symbol_unique_id=None, mark=""):
         self.code = code
+        self.mark = mark or ""
         self.description = description or ""
         self.symbol_id = symbol_id
         self.symbol_unique_id = symbol_unique_id
@@ -164,13 +166,20 @@ def missing_codes(entries, codes):
 
 
 def match_type_marks(entries, type_marks):
-    """Return library codes whose Code equals one of ``type_marks`` (case-insensitive)."""
+    """Return library codes whose type name or Legend_TypeMark value equals one of ``type_marks``."""
     marks = set(normalize_code(mark) for mark in type_marks or [] if mark)
-    return [entry.code for entry in entries if normalize_code(entry.code) in marks]
+    return [
+        entry.code for entry in entries
+        if normalize_code(entry.code) in marks or (entry.mark and normalize_code(entry.mark) in marks)
+    ]
+
+
+_DASHES = dict.fromkeys(map(ord, "\u2010\u2011\u2012\u2013\u2014\u2212"), "-")
 
 
 def normalize_code(value):
-    return (value or "").strip().lower()
+    """Compare codes ignoring case, spaces and dash variants: 'IWS - 105' matches 'iws-105'."""
+    return "".join((value or "").translate(_DASHES).lower().split())
 
 
 def apply_pattern(pattern, category, sheet=None):
@@ -263,6 +272,26 @@ def clean_headings(values, fallback):
         value = (values or {}).get(key)
         result[key] = value.strip() if isinstance(value, str) else fallback.get(key, "")
     return result
+
+
+def match_legend_name(name, categories, pattern):
+    """Read a sheet legend name made from ``pattern``: returns (category, sheet number) or None.
+
+    "Walls LEGEND - A-D-114-0" with pattern "{category} LEGEND - {sheet_number}" gives
+    ("Walls", "A-D-114-0"). A " (2)" style suffix added by Revit for duplicate names is allowed.
+    """
+    import re
+    if not name or "{sheet_number}" not in pattern:
+        return None
+    for category in sorted(categories, key=len, reverse=True):
+        regex = re.escape(pattern)
+        regex = regex.replace(re.escape("{category}"), re.escape(category))
+        regex = regex.replace(re.escape("{sheet_number}"), "(?P<number>.+?)")
+        regex = regex.replace(re.escape("{sheet_name}"), ".+?")
+        found = re.match("^" + regex + r"(?: \(\d+\))?$", name.strip(), re.IGNORECASE)
+        if found:
+            return category, found.group("number").strip()
+    return None
 
 
 def table_layout(width, graphic_width, padding, title_height, header_height, row_heights):

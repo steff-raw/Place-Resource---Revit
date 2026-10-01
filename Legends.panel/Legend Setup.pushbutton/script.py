@@ -1,16 +1,14 @@
 #! python3
 # -*- coding: utf-8 -*-
-"""Build a legend from the category's symbol family.
+"""Legend settings for this model: the text style and the symbol family per category.
 
-Choose a category, tick the family types (one per code, e.g. IWS-105), and the
-tool places one symbol per type in the category legend, stacked under a heading.
+Requires the pyRevit CPython 3 engine. IronPython is not supported.
 """
 
 __title__ = "Legend\nSetup"
 __doc__ = (
-    "Create or update a library legend: choose a category (Walls, Fire Strategy, ...), "
-    "its symbol family and the types. With a sheet open, the legend is made for that sheet "
-    "and named with its sheet number."
+    "Set the legend text style and the symbol family for each legend category "
+    "(Walls, Fire Strategy, ...). Saved in this model."
 )
 __author__ = "Place Resource"
 
@@ -78,7 +76,7 @@ def main():
     assert_project_document(doc)
     trail.step("reading library_legends.json")
     library_settings = load_library_settings()
-    run_setup(doc, library_settings, revit.uidoc)
+    run_setup(doc, library_settings)
     trail.step("finished")
 
 

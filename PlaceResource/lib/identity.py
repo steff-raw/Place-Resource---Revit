@@ -345,19 +345,62 @@ def _write_entity(element, guid_text, name, documentation, payload):
     entity = DB.ExtensibleStorage.Entity(schema)
     field = schema.GetField("Payload")
     text = json.dumps(payload, ensure_ascii=False, sort_keys=True)
-    try:
-        entity.Set(field, text)
-    except Exception:
-        from System import String
-        entity.Set[String](field, text)
+    _entity_set_text(entity, field, text)
     element.SetEntity(entity)
+
+
+def _entity_get_text(entity, field):
+    """Read a string field. Entity.Get<T> is generic, which pythonnet does not always bind,
+    so three ways are tried in turn: Get[String](field), Get[String](name), then reflection."""
+    from System import String
+    errors = []
+    for attempt in (
+        lambda: entity.Get[String](field),
+        lambda: entity.Get[String](field.FieldName),
+        lambda: _invoke_generic(entity, "Get", [field]),
+    ):
+        try:
+            return attempt()
+        except Exception as ex:
+            errors.append(str(ex))
+    raise LookupError("Could not read stored legend data: " + " | ".join(errors))
+
+
+def _entity_set_text(entity, field, text):
+    """Write a string field, with the same fallbacks as _entity_get_text."""
+    from System import String
+    errors = []
+    for attempt in (
+        lambda: entity.Set[String](field, text),
+        lambda: entity.Set(field, text),
+        lambda: _invoke_generic(entity, "Set", [field, text]),
+    ):
+        try:
+            attempt()
+            return
+        except Exception as ex:
+            errors.append(str(ex))
+    raise LookupError("Could not store legend data: " + " | ".join(errors))
+
+
+def _invoke_generic(entity, name, arguments):
+    """Call Entity.Get<String>(Field) or Entity.Set<String>(Field, String) through .NET reflection."""
+    from System import Array, Object, String
+    for method in entity.GetType().GetMethods():
+        if method.Name != name or not method.IsGenericMethodDefinition:
+            continue
+        parameters = method.GetParameters()
+        if len(parameters) != len(arguments) or parameters[0].ParameterType.Name != "Field":
+            continue
+        return method.MakeGenericMethod(String).Invoke(entity, Array[Object](arguments))
+    raise LookupError("Entity.{0}<T>(Field) not found".format(name))
 
 
 def _read_entity(element, guid_text):
     if element is None:
         return None
     try:
-        from System import Guid, String
+        from System import Guid
         from version_adapter import get_db
         DB = get_db()
         schema = DB.ExtensibleStorage.Schema.Lookup(Guid(guid_text))
@@ -368,9 +411,10 @@ def _read_entity(element, guid_text):
             return None
         field = schema.GetField("Payload")
         try:
-            text = entity.Get[String](field)
-        except Exception:
-            text = entity.Get(field)
+            text = _entity_get_text(entity, field)
+        except LookupError as ex:
+            _note_read_failure(ex)
+            return None
         if not text:
             return None
         data = json.loads(text)
@@ -379,6 +423,21 @@ def _read_entity(element, guid_text):
     except Exception:
         return None
     return None
+
+
+_READ_FAILURE_NOTED = []
+
+
+def _note_read_failure(error):
+    """Write the first read failure of a run to the step log, so it can be reported."""
+    if _READ_FAILURE_NOTED:
+        return
+    _READ_FAILURE_NOTED.append(True)
+    try:
+        import trail
+        trail.step(str(error))
+    except Exception:
+        pass
 
 
 def _registry_storage(doc):

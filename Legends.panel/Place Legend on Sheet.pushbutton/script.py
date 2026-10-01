@@ -1,14 +1,14 @@
 #! python3
 # -*- coding: utf-8 -*-
-"""Place the generated legend for a model view onto a sheet.
+"""Make legends for a sheet from the symbol families and place them on it.
 
 Requires the pyRevit CPython 3 engine. IronPython is not supported.
 """
 
 __title__ = "Place Legend\non Sheet"
 __doc__ = (
-    "Place legends on a sheet. On a sheet, first choose which legends it shows: the type legend "
-    "from its views and any library legend (Walls, Fire Strategy, ...)."
+    "Make legends for the open sheet (or a sheet you pick) and place them: "
+    "choose the categories, draw a box or type the width, then the headings."
 )
 __author__ = "Place Resource"
 
@@ -58,190 +58,44 @@ trail.start("Place Legend on Sheet")
 
 from pyrevit import revit
 
-from configuration import load_settings
 from errors import LegendToolError
-from identity import find_legend
-from legend_service import create_or_update, prepare_plan
 from logging_service import get_logger
-from placement_service import interactive_place, model_viewports_on_sheet, sheet_label
-from reporting import alert_error, print_report
-from ui_service import choose_definition, choose_named_item, confirm_delete, ensure_text_style
-from validation import assert_project_document, assert_supported_source_view, definitions_for_view, view_type_token
-from version_adapter import element_id_value, get_db, make_element_id
+from reporting import alert_error
+from validation import assert_project_document
 
 LOGGER = get_logger("place_legend_on_sheet")
 
 
 def main():
-    """Place a generated legend on the active sheet, or on a sheet the user selects."""
+    """Pick the legend categories for a sheet, then build and place each one."""
+    from dialogs import choose_many_from_list
+    from identity import find_library_legend
+    from legend_library import load_library_settings
+    from library_ui import _active_sheet, choose_sheet, run_sheet_legend
+    from placement_service import sheet_label
     doc = revit.doc
     uidoc = revit.uidoc
     assert_project_document(doc)
-    settings = load_settings()
-    active = doc.ActiveView
-    DB = get_db()
-    if active is not None and active.ViewType == DB.ViewType.DrawingSheet:
-        _place_from_sheet(doc, uidoc, active, settings)
+    library_settings = load_library_settings()
+    sheet = _active_sheet(doc) or choose_sheet(doc)
+    if sheet is None:
         return
-    definitions = definitions_for_view(settings, active)
-    if not definitions:
-        raise LegendToolError(
-            "Open a supported model view, or open a sheet and run this command to pick a viewport."
-        )
-    definition = choose_definition(definitions)
-    if definition is None:
-        return
-    assert_supported_source_view(active, definition)
-    legend_view = _ensure_legend(doc, active, definition, settings)
-    if legend_view is None:
-        return
-    viewport, warnings = interactive_place(doc, uidoc, active, legend_view, definition)
-    _report_placement(active, legend_view, definition, viewport, warnings)
-
-
-VIEW_TYPE_LEGEND = "Type legend from the views on this sheet (legends.json)"
-
-
-def _place_from_sheet(doc, uidoc, sheet, settings):
-    """First ask which legend(s) this sheet shows, then build and place each one."""
-    from dialogs import choose_many_from_list
-    from identity import find_library_legend
-    library_settings, library_error = _load_library()
-    labels = [VIEW_TYPE_LEGEND]
-    categories = []
-    preselected = []
-    if library_settings is not None:
-        for category in library_settings["categories"]:
-            categories.append(category)
-            labels.append("Library: {0}".format(category))
-            if find_library_legend(doc, category, sheet) is not None:
-                preselected.append(len(labels) - 1)
-    prompt = "Tick the legends to show on sheet {0}. Ticked: library legends already made for this sheet.".format(
-        sheet_label(sheet)
+    categories = list(library_settings["categories"].keys())
+    preselected = [index for index, category in enumerate(categories)
+                   if find_library_legend(doc, category, sheet) is not None]
+    chosen = choose_many_from_list(
+        "Place Legend on Sheet", categories, preselected=preselected,
+        prompt="Tick the legends for sheet {0}. Ticked: legends this sheet already has.".format(sheet_label(sheet)),
     )
-    if library_error:
-        prompt = "The legend library settings could not be loaded, so only the type legend is offered. {0}".format(
-            library_error
-        )
-    chosen = choose_many_from_list("Place Legend on Sheet", labels, preselected=preselected, prompt=prompt)
     if not chosen:
         return
-    from library_ui import run_sheet_legend
     for index in chosen:
         # One legend failing does not stop the others. Each one is its own undoable change.
         try:
-            if index == 0:
-                _place_view_legend_from_sheet(doc, uidoc, sheet, settings)
-            else:
-                run_sheet_legend(doc, uidoc, sheet, categories[index - 1], library_settings)
+            run_sheet_legend(doc, uidoc, sheet, categories[index], library_settings)
         except LegendToolError as error:
             LOGGER.error("%s", error)
-            alert_error("Place Legend on Sheet", "{0}\n\n{1}".format(labels[index], error))
-
-
-def _load_library():
-    from legend_library import load_library_settings
-    try:
-        return load_library_settings(), None
-    except LegendToolError as error:
-        LOGGER.warning("Legend library not loaded: %s", error)
-        return None, str(error)
-
-
-def _place_view_legend_from_sheet(doc, uidoc, sheet, settings):
-    pairs = model_viewports_on_sheet(doc, sheet, settings["data"]["legend_definitions"])
-    if not pairs:
-        raise LegendToolError(
-            "Sheet '{0}' has no plan, section, or elevation viewport supported by the settings file.".format(
-                sheet_label(sheet)
-            )
-        )
-    labels = ["All views on this sheet (combined legend)"]
-    labels.extend("{0} ({1})".format(view.Name, view_type_token(view)) for _viewport, view in pairs)
-    selected = choose_named_item(
-        "Select the source for the legend",
-        list(range(len(labels))),
-        lambda index: labels[index],
-    )
-    if selected is None:
-        return
-    # Index 0 uses the sheet itself as the source: types from every supported view on it are merged.
-    source_view = sheet if selected == 0 else pairs[selected - 1][1]
-    definitions = definitions_for_view(settings, source_view)
-    if not definitions:
-        raise LegendToolError(
-            "View '{0}' is not covered by a legend definition.".format(source_view.Name)
-        )
-    definition = choose_definition(definitions)
-    if definition is None:
-        return
-    legend_view = _ensure_legend(doc, source_view, definition, settings)
-    if legend_view is None:
-        return
-    viewport, warnings = interactive_place(
-        doc, uidoc, source_view, legend_view, definition, active_sheet=sheet
-    )
-    _report_placement(source_view, legend_view, definition, viewport, warnings)
-
-
-def _ensure_legend(doc, source_view, definition, settings):
-    from dialogs import ask_yes_no
-    legend_view = find_legend(doc, source_view, definition["id"])
-    if legend_view is not None:
-        return legend_view
-    create = ask_yes_no(
-        "Place Legend on Sheet",
-        "There is no generated legend for '{0}' using '{1}'. Create it now?".format(
-            source_view.Name, definition["display_name"]
-        ),
-        yes_label="Create the legend",
-        no_label="Cancel",
-    )
-    if not create:
-        return None
-    styles = definition["styles"]
-    if not ensure_text_style(doc, [styles["text_note_type"], styles["header_text_note_type"]]):
-        return None
-    plan = prepare_plan(doc, source_view, definition, settings)
-    allow_delete = False
-    if plan["to_remove"] and definition["update"].get("remove_unused_entries"):
-        allow_delete = True
-        if definition["update"].get("confirm_before_deleting"):
-            labels = []
-            for type_id in plan["to_remove"]:
-                element = doc.GetElement(make_element_id(type_id))
-                labels.append(element.Name if element is not None else str(type_id))
-            allow_delete = bool(confirm_delete(labels))
-    report = create_or_update(doc, source_view, definition, settings, {"allow_delete": allow_delete})
-    print_report(report)
-    if report.get("status") == "failed" or report.get("legend_view_id") is None:
-        alert_error("Place Legend on Sheet", "\n".join(report.get("errors") or ["The legend was not created."]))
-        return None
-    return doc.GetElement(make_element_id(report["legend_view_id"]))
-
-
-def _report_placement(source_view, legend_view, definition, viewport, warnings):
-    print_report({
-        "status": "placed" if viewport is not None else "not placed",
-        "source_view_id": element_id_value(source_view.Id),
-        "source_view_name": source_view.Name,
-        "legend_view_id": None if legend_view is None else element_id_value(legend_view.Id),
-        "legend_view_name": None if legend_view is None else legend_view.Name,
-        "definition_name": definition["display_name"],
-        "instance_count": "",
-        "unique_type_count": "",
-        "added": [],
-        "updated": [],
-        "removed": [],
-        "realigned": 0,
-        "warnings": list(warnings or []) + (
-            [] if viewport is not None else ["The legend was not placed."]
-        ),
-        "errors": [],
-        "notices": [] if viewport is None else ["The legend viewport was created. Future updates keep its centre."],
-        "host": "",
-        "version": "",
-    })
+            alert_error("Place Legend on Sheet", "{0}\n\n{1}".format(categories[index], error))
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@
     "family_name": "PR Legend - {category}",
     "description_parameter": "Legend_Description",
     "type_mark_visibility_parameter": "Legend_TypeMark_Visibility",
+    "type_mark_parameter": "Legend_TypeMark",
     "text_visibility_parameter": "Text_Visibility",
     "show_type_mark": true,
     "viewport_type_name": "No Title",
@@ -16,7 +17,7 @@
     "output_name_pattern": "{category} LEGEND",
     "sheet_output_name_pattern": "{category} LEGEND - {sheet_number}",
     "scale": 100,
-    "source_view_types": ["FloorPlan", "CeilingPlan", "Section", "Elevation"],
+    "source_view_types": ["FloorPlan", "CeilingPlan", "Section", "Elevation", "Detail"],
     "styles": {
       "heading_text_type": "2.5mm Arial Bold",
       "show_heading": true,
