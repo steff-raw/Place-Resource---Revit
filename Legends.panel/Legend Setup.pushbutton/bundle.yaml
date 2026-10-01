@@ -1,6 +1,6 @@
 title: "Legend\nSetup"
 tooltip: >
-  Set the legend text style and the symbol family for each legend category.
+  Set the heading and description fonts and the symbol family for each category.
   Saved in this model.
 author: Place Resource
 context: doc-project

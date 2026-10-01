@@ -2,6 +2,41 @@
 
 pyRevit panel that builds legends on sheets from symbol families, based on the Type Marks shown in the sheet's views.
 
+## How it works
+
+### In one line
+
+The walls (or doors, floors, ceilings) shown on a sheet carry Type Marks. The tool finds the matching types in your symbol family and draws a bordered legend on that sheet: graphic on the left, description on the right.
+
+### Quick start
+
+1. **Make the symbol family** (once): one type per Type Mark, e.g. `IWS-105`, with `Legend_Description` filled in. See [The symbol family](#the-symbol-family-made-by-hand-once-per-category).
+2. **Load it** into the project.
+3. **Legend Setup** (once per project): pick the heading font, the description font and the family for each category. Press Done.
+4. **Open a sheet > Place Legend on Sheet:** tick Walls, draw a box where the legend goes, choose Type Mark on/off, type the headings.
+5. **After design changes > Update All Generated Legends:** every legend is redrawn in place.
+
+### What happens behind each step
+
+| Step | What the tool does |
+|---|---|
+| Legend Setup | Saves the fonts and the family for each category in the model (Extensible Storage). Nothing is drawn. |
+| Reading the sheet | Collects the elements of the category visible in each plan, section, elevation and detail view on the sheet (linked models too), reads their Type Marks. |
+| Matching | Compares each Type Mark with the family type names and `Legend_TypeMark`, ignoring case, spaces and dash style. Only matching types become rows. |
+| Making the legend view | Copies an existing legend view (Revit cannot create one from nothing), names it `<Category> LEGEND - <sheet number>`, sets the scale. |
+| Drawing | Places one symbol per row, sets `Legend_TypeMark_Visibility` and `Text_Visibility`, writes the headings and wrapped descriptions as text notes, and draws the table lines. |
+| Sizing | The graphic column fits the widest symbol. The description column takes the rest of the width you chose; text wraps to it. Each row is as tall as its symbol or its text. |
+| Placing | Puts the legend on the sheet at the box corner (or the point you pick) with the `No Title` viewport type. |
+| Remembering | Stores on the legend: category, sheet, rows, width, headings, Type Mark choice. Stores in the model: the last headings per category, for next time. |
+| Update All | Finds the tool's legends by that stored data or by name, deletes everything inside each one, redraws it with the current Type Marks and family, then moves the viewport back so its top-left corner is where it was. |
+
+### Rules it follows
+
+- Only legends made by the tool are changed. Model elements are never touched.
+- Every command is one undo step. If something fails, the whole change is undone.
+- Hand edits inside a tool legend are replaced on the next update.
+- Nothing leaves the computer: no internet, no other programs.
+
 ## Repository layout
 
 ```
@@ -60,10 +95,11 @@ The buttons look for `lib` in: `PLACE_RESOURCE_HOME`, then `PlaceResource` next 
 
 Settings for this model only:
 
-- **Legend text style:** the text type for headings and descriptions.
+- **Heading font:** text type for the main and column headings (uses the description font when not set).
+- **Description font:** text type for the descriptions.
 - **One row per category** (Walls, Fire Strategy, ...): pick its symbol family from the Generic Annotation and Detail Item families loaded in the model.
 
-Pick a row to change it; press Close when done. Everything is saved in the model.
+Pick a row and press Change; press Done to finish. The window says when everything is set. Everything is saved in the model.
 
 ### Place Legend on Sheet
 
@@ -110,7 +146,7 @@ Shared `defaults`, then one entry per category:
 
 ## Manual test checklist
 
-- [ ] Legend Setup: set the text style and the Walls family; reopen and see them kept.
+- [ ] Legend Setup: set both fonts and the Walls family; reopen and see them kept, and "All set" shown.
 - [ ] Place Legend on Sheet on a sheet with walls IWS-101/102/105: only those three rows, bordered table, headings, no viewport title.
 - [ ] Draw a 12 cm box: text wraps inside 12 cm, legend top-left at the box corner.
 - [ ] Headings typed once come back prefilled for the next Walls legend.

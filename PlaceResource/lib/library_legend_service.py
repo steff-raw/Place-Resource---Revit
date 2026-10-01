@@ -93,7 +93,7 @@ def prepare(doc, config, entries, need_template):
         )
     if config["styles"].get("show_heading"):
         try:
-            resolved["heading_type"] = resolve_text_type(doc, config["styles"]["heading_text_type"])
+            resolved["heading_type"] = resolve_text_type(doc, config["styles"]["heading_text_type"], role="heading")
         except LegendOperationError as ex:
             problems.append(str(ex))
     if config["styles"].get("show_text", True):
@@ -467,7 +467,11 @@ def _clear_legend(doc, view):
         if category is not None and element_id_value(category.Id) in allowed:
             ids.append(element.Id)
     if ids:
-        doc.Delete(List[DB.ElementId](ids))
+        # pythonnet 3 cannot turn a Python list into a .NET collection, so fill it one by one.
+        collection = List[DB.ElementId]()
+        for element_id in ids:
+            collection.Add(element_id)
+        doc.Delete(collection)
     return len(ids)
 
 

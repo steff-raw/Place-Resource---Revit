@@ -3,7 +3,7 @@
 
 One DataStorage element carries an Extensible Storage entity with a JSON payload:
 
-    {"text_type": "<TextNoteType name>",
+    {"text_type": "<TextNoteType name>", "heading_text_type": "<TextNoteType name>",
      "families": {"<category>": "<family name>"},
      "headings": {"<category>": {"title": ..., "graphic": ..., "description": ...}}}
 
@@ -16,18 +16,19 @@ import json
 
 SETTINGS_SCHEMA_GUID = "5b7e2d94-3a1c-4f08-9e6b-2c4d8a1f7e35"
 SETTINGS_SCHEMA_NAME = "PRLegendProjectSettings"
-_EMPTY = {"text_type": None, "families": {}, "headings": {}}
+_EMPTY = {"text_type": None, "heading_text_type": None, "families": {}, "headings": {}}
 _HEADING_KEYS = ("title", "graphic", "description")
 
 
 def normalize(data):
     """Return a clean settings dict whatever was stored."""
-    result = {"text_type": None, "families": {}, "headings": {}}
+    result = {"text_type": None, "heading_text_type": None, "families": {}, "headings": {}}
     if not isinstance(data, dict):
         return result
-    text_type = data.get("text_type")
-    if isinstance(text_type, str) and text_type.strip():
-        result["text_type"] = text_type.strip()
+    for key in ("text_type", "heading_text_type"):
+        value = data.get(key)
+        if isinstance(value, str) and value.strip():
+            result[key] = value.strip()
     families = data.get("families")
     if isinstance(families, dict):
         for category, family in families.items():
@@ -64,6 +65,11 @@ def save(doc, data, name="Place Resource: legend settings"):
     from transactions import TransactionContext
     with TransactionContext(doc, name):
         write(doc, data)
+
+
+def heading_text_type_name(doc):
+    """The text note type chosen for legend headings, or None."""
+    return read(doc)["heading_text_type"]
 
 
 def text_type_name(doc):

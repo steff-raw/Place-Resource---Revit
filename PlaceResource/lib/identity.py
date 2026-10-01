@@ -392,7 +392,10 @@ def _invoke_generic(entity, name, arguments):
         parameters = method.GetParameters()
         if len(parameters) != len(arguments) or parameters[0].ParameterType.Name != "Field":
             continue
-        return method.MakeGenericMethod(String).Invoke(entity, Array[Object](arguments))
+        values = Array.CreateInstance(Object, len(arguments))
+        for index, value in enumerate(arguments):
+            values[index] = value
+        return method.MakeGenericMethod(String).Invoke(entity, values)
     raise LookupError("Entity.{0}<T>(Field) not found".format(name))
 
 

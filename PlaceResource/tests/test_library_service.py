@@ -257,7 +257,7 @@ class PrepareTests(unittest.TestCase):
         config["styles"]["show_heading"] = show_heading
         config["styles"]["show_text"] = show_text
 
-        def _text(_doc, name):
+        def _text(_doc, name, role="text"):
             if text_error:
                 raise LegendOperationError("Text note type '{0}' was not found.".format(name))
             return "text-type"

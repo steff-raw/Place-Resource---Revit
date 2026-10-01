@@ -94,6 +94,13 @@ class DialogTests(unittest.TestCase):
         self.assertEqual(self.dialogs.scaled(0.2, 1.0), 1)
         self.assertEqual(self.dialogs.scaled(52, None), 52)
 
+    def test_fields_do_not_overlap(self):
+        positions, total = self.dialogs.field_positions(3, 24, 28, 14, 14)
+        self.assertEqual(positions, [(14, 38), (80, 104), (146, 170)])
+        for (label_top, box_top), (next_label, _box) in zip(positions, positions[1:]):
+            self.assertGreaterEqual(next_label, box_top + 28)
+        self.assertEqual(total, 14 + 3 * (24 + 28) + 2 * 14 + 14)
+
     def test_rows_show_details(self):
         rows = self.dialogs.row_labels(["Validate", "Choose", "Open"], ["check the file", None])
         self.assertEqual(rows, ["Validate - check the file", "Choose", "Open"])

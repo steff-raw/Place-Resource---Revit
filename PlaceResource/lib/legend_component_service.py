@@ -606,15 +606,20 @@ def text_type_names(doc):
     return sorted(names, key=lambda name: name.lower())
 
 
-def resolve_text_type(doc, fallback_name):
+def resolve_text_type(doc, fallback_name, role="text"):
     """Return the text type for generated legend text.
 
     The style chosen in Settings (saved in the model) wins for every role. Without one,
     the name from the settings file is used.
     """
-    from project_settings import text_type_name
-    chosen = text_type_name(doc)
-    if chosen:
+    from project_settings import heading_text_type_name, text_type_name
+    saved = [text_type_name(doc)]
+    if role == "heading":
+        # Headings use their own style when one is set, else the description style.
+        saved.insert(0, heading_text_type_name(doc))
+    for chosen in saved:
+        if not chosen:
+            continue
         try:
             return find_text_type(doc, chosen)
         except LegendOperationError:

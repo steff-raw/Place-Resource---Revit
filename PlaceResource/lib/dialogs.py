@@ -244,35 +244,69 @@ def ask_text(title, prompt, default="", button_text="OK"):
         form.Dispose()
 
 
+FIELD_LABEL_HEIGHT = 24
+FIELD_BOX_HEIGHT = 28
+FIELD_GAP = 14
+FIELD_MARGIN = 14
+FIELD_WIDTH = 640
+
+
+def field_positions(count, label_height, box_height, gap, margin):
+    """Top of each label and text box, stacked with space between fields. Returns (positions, total height)."""
+    positions = []
+    y = margin
+    for _index in range(count):
+        positions.append((y, y + label_height))
+        y += label_height + box_height + gap
+    return positions, y - gap + margin
+
+
 def ask_fields(title, prompt, fields, button_text="OK"):
     """Ask for several lines of text at once. ``fields`` is a list of (label, default).
 
-    Returns the typed values in the same order, or None when cancelled.
+    Each field is a label with its text box under it, placed at measured positions
+    so nothing overlaps at any screen scale. Returns the typed values in the same
+    order, or None when cancelled.
     """
     _load_winforms()
-    from System.Windows.Forms import DialogResult, DockStyle, Label, Padding, Panel, TextBox
+    from System.Drawing import Point, Size
+    from System.Windows.Forms import AnchorStyles, DialogResult, Label, Panel, TextBox
     panel = Panel()
     panel.AutoScroll = True
+    form = _build_form(title, prompt, button_text, panel, compact=True)
+    factor = _dpi_factor(form)
+    width = scaled(FIELD_WIDTH, factor)
+    margin = scaled(FIELD_MARGIN, factor)
+    label_height = scaled(FIELD_LABEL_HEIGHT, factor)
+    box_height = scaled(FIELD_BOX_HEIGHT, factor)
+    positions, content_height = field_positions(
+        len(fields), label_height, box_height, scaled(FIELD_GAP, factor), margin
+    )
     boxes = []
-    rows = []
-    for label_text, default in fields:
+    stretch = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+    for (label_text, default), (label_top, box_top) in zip(fields, positions):
         label = Label()
         label.Text = label_text
         label.AutoSize = False
-        label.Height = 26
-        label.Dock = DockStyle.Top
-        label.Padding = Padding(10, 6, 10, 0)
+        label.Location = Point(margin, label_top)
+        label.Size = Size(width - 2 * margin, label_height)
+        label.Anchor = stretch
         box = TextBox()
         box.Text = default or ""
-        box.Dock = DockStyle.Top
+        box.Location = Point(margin, box_top)
+        box.Width = width - 2 * margin
+        box.Anchor = stretch
+        panel.Controls.Add(label)
+        panel.Controls.Add(box)
         boxes.append(box)
-        rows.extend([label, box])
-    # Controls docked to the top stack from the last one added, so add them in reverse.
-    for control in reversed(rows):
-        panel.Controls.Add(control)
-    form = _build_form(title, prompt, button_text, panel, compact=True)
     try:
-        form.Height = form.Height + 60 * len(fields)
+        form.Size = Size(
+            width + scaled(16, factor),
+            content_height + scaled(PROMPT_HEIGHT + BUTTON_BAR_HEIGHT + 48, factor),
+        )
+        form.MinimumSize = form.Size
+        if boxes:
+            form.ActiveControl = boxes[0]
         trail_step("showing fields: {0}".format(title))
         if form.ShowDialog() != DialogResult.OK:
             return None
