@@ -162,17 +162,64 @@ def pick_sheet_box(uidoc, sheet):
     return DB.XYZ(x, y, 0), width
 
 
-def align_top_left(doc, viewport, point):
-    """Move a viewport so the top-left of its box sits on ``point``. Opens its own transaction."""
+def table_corner_on_sheet(doc, viewport):
+    """Where the legend table's top-left corner (view point 0,0) is on the sheet.
+
+    Uses Revit's view-to-sheet transforms, so the margin Revit keeps around the
+    viewport contents does not matter. Falls back to the top-left of the viewport
+    outline when the transforms are not available. Returns an XYZ.
+    """
     DB = get_db()
-    with TransactionContext(doc, "Line up legend with the box") as transaction:
-        outline = viewport.GetBoxOutline()
-        low = outline.MinimumPoint
-        high = outline.MaximumPoint
+    point = view_point_on_sheet(doc, viewport, 0.0, 0.0)
+    if point is not None:
+        return point
+    outline = viewport.GetBoxOutline()
+    return DB.XYZ(outline.MinimumPoint.X, outline.MaximumPoint.Y, 0)
+
+
+def view_point_on_sheet(doc, viewport, x, y):
+    """Sheet position of the view point (x, y), or None when Revit cannot tell (older API)."""
+    DB = get_db()
+    try:
+        view = doc.GetElement(viewport.ViewId)
+        to_sheet = viewport.GetProjectionToSheetTransform()
+        to_projection = view.GetModelToProjectionTransforms()[0].GetModelToProjectionTransform()
+        return to_sheet.OfPoint(to_projection.OfPoint(DB.XYZ(x, y, 0)))
+    except Exception:
+        return None
+
+
+def placed_width_check(doc, viewport, width_view, width_mm):
+    """Warnings when the table's width on the sheet differs from the asked width by more than 1 mm."""
+    from units import internal_to_mm
+    # Called after a committed transaction, so the document is already regenerated.
+    left = view_point_on_sheet(doc, viewport, 0.0, 0.0)
+    right = view_point_on_sheet(doc, viewport, width_view, 0.0)
+    if left is None or right is None:
+        return []
+    placed = internal_to_mm(abs(right.X - left.X))
+    if abs(placed - width_mm) <= 1.0:
+        return []
+    return ["The legend is {0:.0f} mm wide on the sheet but {1:.0f} mm was asked for. Check the legend "
+            "view scale.".format(placed, width_mm)]
+
+
+def move_table_corner_to(doc, viewport, point):
+    """Move the viewport so the table's top-left corner sits on ``point``. Needs an open transaction."""
+    DB = get_db()
+    doc.Regenerate()
+    current = table_corner_on_sheet(doc, viewport)
+    dx = point.X - current.X
+    dy = point.Y - current.Y
+    if abs(dx) > 1e-9 or abs(dy) > 1e-9:
         centre = viewport.GetBoxCenter()
-        dx = point.X - low.X
-        dy = point.Y - high.Y
         viewport.SetBoxCenter(DB.XYZ(centre.X + dx, centre.Y + dy, centre.Z))
+
+
+def align_top_left(doc, viewport, point):
+    """Put the legend table's top-left corner on ``point`` (the corner of the drawn box). Opens its own transaction."""
+    with TransactionContext(doc, "Line up legend with the box") as transaction:
+        move_table_corner_to(doc, viewport, point)
     return list(transaction.warnings)
 
 

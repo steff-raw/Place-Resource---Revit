@@ -476,7 +476,8 @@ def _clear_legend(doc, view):
 
 
 def _capture_corners(doc, view):
-    """(viewport id, top-left of its box on the sheet) for every viewport showing the legend."""
+    """(viewport id, sheet position of the table's top-left corner) for every viewport showing the legend."""
+    from placement_service import table_corner_on_sheet
     DB = get_db()
     target = element_id_value(view.Id)
     captured = []
@@ -484,27 +485,21 @@ def _capture_corners(doc, view):
         try:
             if element_id_value(viewport.ViewId) != target:
                 continue
-            outline = viewport.GetBoxOutline()
-            captured.append((viewport.Id, outline.MinimumPoint.X, outline.MaximumPoint.Y))
+            captured.append((viewport.Id, table_corner_on_sheet(doc, viewport)))
         except Exception:
             continue
     return captured
 
 
 def _restore_corners(doc, captured, report):
-    """Move each viewport back so its top-left is where it was. Width is fixed, so only the bottom moves."""
-    DB = get_db()
-    for viewport_id, left, top in captured:
+    """Move each viewport back so the table's top-left corner is where it was. Only the bottom edge moves."""
+    from placement_service import move_table_corner_to
+    for viewport_id, corner in captured:
         viewport = doc.GetElement(viewport_id)
         if viewport is None:
             continue
         try:
-            outline = viewport.GetBoxOutline()
-            centre = viewport.GetBoxCenter()
-            dx = left - outline.MinimumPoint.X
-            dy = top - outline.MaximumPoint.Y
-            if abs(dx) > 1e-9 or abs(dy) > 1e-9:
-                viewport.SetBoxCenter(DB.XYZ(centre.X + dx, centre.Y + dy, centre.Z))
+            move_table_corner_to(doc, viewport, corner)
         except Exception as ex:
             report["warnings"].append("A legend could not be kept in its place on the sheet. {0}".format(ex))
 

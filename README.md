@@ -143,7 +143,7 @@ Shared `defaults`, then one entry per category:
 ## Not yet confirmed in Revit
 
 - Placing annotation symbols in a legend with `NewFamilyInstance`.
-- `Selection.PickBox` on a sheet and keeping the viewport corner with `SetBoxCenter`.
+- `Selection.PickBox` on a sheet, and placing the table corner with `Viewport.GetProjectionToSheetTransform` + `View.GetModelToProjectionTransforms` (Revit 2022+; falls back to the viewport outline).
 - Collecting linked elements with `FilteredElementCollector(doc, viewId, linkId)` (Revit 2024+).
 
 ## Manual test checklist

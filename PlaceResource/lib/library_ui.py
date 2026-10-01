@@ -363,11 +363,19 @@ def _put_on_sheet(doc, uidoc, sheet, legend_view, config, corner, report):
         interactive_place,
         legend_viewport_on_sheet,
         place_on_sheet,
+        placed_width_check,
         set_viewport_type,
         sheet_label,
     )
+    from units import mm_to_internal
     if legend_view is None:
         return
+
+    def _check_width(viewport):
+        if report.get("width_mm"):
+            width_view = mm_to_internal(report["width_mm"]) * float(legend_view.Scale or config["scale"])
+            report["warnings"].extend(placed_width_check(doc, viewport, width_view, report["width_mm"]))
+
     viewport = legend_viewport_on_sheet(doc, sheet, legend_view)
     if viewport is not None:
         report["warnings"].extend(set_viewport_type(doc, viewport, config.get("viewport_type_name")))
@@ -375,14 +383,16 @@ def _put_on_sheet(doc, uidoc, sheet, legend_view, config, corner, report):
             report["notices"].append("The legend is already on '{0}'. Its position was kept.".format(sheet_label(sheet)))
             return
         report["warnings"].extend(align_top_left(doc, viewport, corner))
+        _check_width(viewport)
         report["notices"].append("The legend was moved to the box you drew.")
         return
     if corner is not None:
         viewport, warnings = place_on_sheet(doc, sheet, legend_view, corner)
         report["warnings"].extend(warnings or [])
-        # The title is hidden first, so the box outline used for lining up is the legend itself.
         report["warnings"].extend(set_viewport_type(doc, viewport, config.get("viewport_type_name")))
+        # The table's own top-left corner goes on the box corner, not the viewport outline.
         report["warnings"].extend(align_top_left(doc, viewport, corner))
+        _check_width(viewport)
         return
     viewport, warnings = interactive_place(doc, uidoc, sheet, legend_view, config, active_sheet=sheet)
     report["warnings"].extend(warnings or [])
