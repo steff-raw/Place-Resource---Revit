@@ -382,7 +382,9 @@ def _put_on_sheet(doc, uidoc, sheet, legend_view, config, corner, report):
         if corner is None:
             report["notices"].append("The legend is already on '{0}'. Its position was kept.".format(sheet_label(sheet)))
             return
-        report["warnings"].extend(align_top_left(doc, viewport, corner))
+        warnings, notes = align_top_left(doc, viewport, corner)
+        report["warnings"].extend(warnings)
+        report["notices"].extend(notes)
         _check_width(viewport)
         report["notices"].append("The legend was moved to the box you drew.")
         return
@@ -391,7 +393,9 @@ def _put_on_sheet(doc, uidoc, sheet, legend_view, config, corner, report):
         report["warnings"].extend(warnings or [])
         report["warnings"].extend(set_viewport_type(doc, viewport, config.get("viewport_type_name")))
         # The table's own top-left corner goes on the box corner, not the viewport outline.
-        report["warnings"].extend(align_top_left(doc, viewport, corner))
+        warnings, notes = align_top_left(doc, viewport, corner)
+        report["warnings"].extend(warnings)
+        report["notices"].extend(notes)
         _check_width(viewport)
         return
     viewport, warnings = interactive_place(doc, uidoc, sheet, legend_view, config, active_sheet=sheet)
