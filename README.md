@@ -117,6 +117,7 @@ The library lives in Revit as **one symbol family per category**:
 On a sheet, first choose which legends the sheet shows. For each library category:
 
 - **Walls, Floors, Ceilings, Doors:** no tick list. The rows are the family types whose name matches a Type Mark in the sheet's plans, sections or elevations. Types not on the sheet are left out.
+- **Matching:** each wall's Type Mark (from the wall type) is compared with the family type name and the family's `Legend_TypeMark` value. Case, spaces and dash style are ignored (`IWS - 105` matches `IWS-105`). Walls in linked models shown in the view count too. If nothing matches, the message lists the views checked, the Type Marks found and the family types.
 - **Other categories (Fire Strategy, ...):** nothing to match in the model, so you tick the rows.
 - **Width:** choose one:
   - **Draw a box on the sheet:** the box width sets the legend width, and the legend's top-left goes to the box's top-left corner.

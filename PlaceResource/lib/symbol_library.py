@@ -73,6 +73,7 @@ def family_entries(doc, config):
             description=_parameter_text(symbol, config["description_parameter"]),
             symbol_id=element_id_value(symbol.Id),
             symbol_unique_id=getattr(symbol, "UniqueId", None),
+            mark=_parameter_text(symbol, config.get("type_mark_parameter") or ""),
         ))
     entries.sort(key=lambda entry: natural_sort_key(entry.code))
     return entries, []

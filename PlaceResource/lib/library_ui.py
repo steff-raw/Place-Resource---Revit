@@ -265,18 +265,36 @@ def _rows_from_sheet(doc, sheet, config):
     if problems:
         dialogs.alert("\n".join(problems), title="Legend library")
         return None
+    from collectors import sheet_source_views, type_marks_for_source
     trail.step("reading Type Marks in the views on the sheet")
     codes = sheet_codes(doc, sheet, config, entries)
     if not codes:
+        views = sheet_source_views(doc, sheet, config["source_view_types"])
+        marks = type_marks_for_source(doc, sheet, config["revit_category"], config["source_view_types"])
         dialogs.alert(
-            "No {0} in the views on sheet {1} has a Type Mark that matches a type of family '{2}'.\n\n"
-            "Family type names must be the Type Marks exactly, e.g. IWS-105.".format(
-                config["name"].lower(), sheet_label(sheet), config["family_name"]
+            "None of the {0} Type Marks on sheet {1} matches a type of family '{2}'.\n\n"
+            "Views checked: {3}\n\n"
+            "Type Marks found: {4}\n\n"
+            "Family types: {5}".format(
+                config["name"].lower(), sheet_label(sheet), config["family_name"],
+                _short_list([view.Name for view in views], "none (no {0} on this sheet)".format(
+                    " / ".join(config["source_view_types"]))),
+                _short_list(marks, "none (the {0} in these views have no Type Mark)".format(config["name"].lower())),
+                _short_list([entry.code + (" ({0})".format(entry.mark) if entry.mark and entry.mark != entry.code else "")
+                             for entry in entries], "none"),
             ),
             title="{0} legend".format(config["name"]),
         )
         return None
     return entries_for_codes(entries, codes)
+
+
+def _short_list(items, empty_text, limit=15):
+    items = list(items)
+    if not items:
+        return empty_text
+    text = ", ".join(items[:limit])
+    return text + (" and {0} more".format(len(items) - limit) if len(items) > limit else "")
 
 
 def ask_headings(doc, config, existing):

@@ -113,16 +113,44 @@ def type_marks_for_source(doc, source, category_name, view_types):
     seen_types = set()
     for view in views:
         collector = DB.FilteredElementCollector(doc, view.Id).OfCategory(built_in).WhereElementIsNotElementType()
-        for element in collector:
-            type_id = element.GetTypeId()
-            key = element_id_value(type_id)
-            if key < 0 or key in seen_types:
+        _add_marks(doc, collector, "host", seen_types, marks, mark_parameter)
+        for link in _visible_links(doc, view):
+            try:
+                link_doc = link.GetLinkDocument()
+                # Revit 2024+: elements of a link that show in a host view.
+                linked = DB.FilteredElementCollector(doc, view.Id, link.Id).OfCategory(built_in).WhereElementIsNotElementType()
+            except Exception:
                 continue
-            seen_types.add(key)
-            mark = type_mark(doc.GetElement(type_id), mark_parameter)
-            if mark:
-                marks.add(mark)
+            if link_doc is not None:
+                _add_marks(link_doc, linked, element_id_value(link.Id), seen_types, marks, mark_parameter)
     return sorted(marks)
+
+
+def _add_marks(type_doc, elements, source_key, seen_types, marks, mark_parameter):
+    from version_adapter import element_id_value
+    for element in elements:
+        try:
+            type_id = element.GetTypeId()
+        except Exception:
+            continue
+        key = (source_key, element_id_value(type_id))
+        if key[1] < 0 or key in seen_types:
+            continue
+        seen_types.add(key)
+        mark = type_mark(type_doc.GetElement(type_id), mark_parameter)
+        if mark:
+            marks.add(mark)
+
+
+def _visible_links(doc, view):
+    """Loaded Revit links shown in the view."""
+    from version_adapter import get_db
+    DB = get_db()
+    try:
+        return [link for link in DB.FilteredElementCollector(doc, view.Id).OfClass(DB.RevitLinkInstance)
+                if link.GetLinkDocument() is not None]
+    except Exception:
+        return []
 
 
 def type_mark(type_element, mark_parameter=None):

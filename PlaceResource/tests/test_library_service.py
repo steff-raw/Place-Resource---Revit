@@ -325,6 +325,16 @@ class StackTests(unittest.TestCase):
         self.assertEqual(L.stack_rows([], 1.0), ([], 0.0))
 
 
+class MarkMatchTests(unittest.TestCase):
+    def test_spaces_case_and_dashes_are_ignored(self):
+        self.assertEqual(L.normalize_code(" IWS - 105 "), "iws-105")
+        self.assertEqual(L.normalize_code("IWS\u2013105"), "iws-105")
+
+    def test_family_type_mark_parameter_also_matches(self):
+        entries = [L.LibraryEntry("Partition A", mark="IWS-101"), L.LibraryEntry("IWS-105"), L.LibraryEntry("IWS-120")]
+        self.assertEqual(L.match_type_marks(entries, ["iws - 105", "IWS-101", "EWS-302"]), ["Partition A", "IWS-105"])
+
+
 class TableTests(unittest.TestCase):
     def test_title_header_and_rows(self):
         table = L.table_layout(100.0, 10.0, 1.0, 4.0, 3.0, [5.0, 2.0])
