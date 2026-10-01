@@ -242,6 +242,43 @@ def ask_text(title, prompt, default="", button_text="OK"):
         form.Dispose()
 
 
+def ask_fields(title, prompt, fields, button_text="OK"):
+    """Ask for several lines of text at once. ``fields`` is a list of (label, default).
+
+    Returns the typed values in the same order, or None when cancelled.
+    """
+    _load_winforms()
+    from System.Windows.Forms import DialogResult, DockStyle, Label, Padding, Panel, TextBox
+    panel = Panel()
+    panel.AutoScroll = True
+    boxes = []
+    rows = []
+    for label_text, default in fields:
+        label = Label()
+        label.Text = label_text
+        label.AutoSize = False
+        label.Height = 26
+        label.Dock = DockStyle.Top
+        label.Padding = Padding(10, 6, 10, 0)
+        box = TextBox()
+        box.Text = default or ""
+        box.Dock = DockStyle.Top
+        boxes.append(box)
+        rows.extend([label, box])
+    # Controls docked to the top stack from the last one added, so add them in reverse.
+    for control in reversed(rows):
+        panel.Controls.Add(control)
+    form = _build_form(title, prompt, button_text, panel, compact=True)
+    try:
+        form.Height = form.Height + 60 * len(fields)
+        trail_step("showing fields: {0}".format(title))
+        if form.ShowDialog() != DialogResult.OK:
+            return None
+        return [box.Text for box in boxes]
+    finally:
+        form.Dispose()
+
+
 def trail_step(text):
     try:
         import trail

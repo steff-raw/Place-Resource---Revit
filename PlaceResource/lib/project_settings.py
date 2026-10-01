@@ -3,10 +3,12 @@
 
 One DataStorage element carries an Extensible Storage entity with a JSON payload:
 
-    {"text_type": "<TextNoteType name>", "families": {"<category>": "<family name>"}}
+    {"text_type": "<TextNoteType name>",
+     "families": {"<category>": "<family name>"},
+     "headings": {"<category>": {"title": ..., "graphic": ..., "description": ...}}}
 
 The settings travel with the model, so every project keeps its own text style
-and its own symbol family per legend category.
+its own symbol family and the last headings typed for each legend category.
 Do not change the schema GUID. Keys from older versions (e.g. "masters") are ignored.
 """
 
@@ -14,12 +16,13 @@ import json
 
 SETTINGS_SCHEMA_GUID = "5b7e2d94-3a1c-4f08-9e6b-2c4d8a1f7e35"
 SETTINGS_SCHEMA_NAME = "PRLegendProjectSettings"
-_EMPTY = {"text_type": None, "families": {}}
+_EMPTY = {"text_type": None, "families": {}, "headings": {}}
+_HEADING_KEYS = ("title", "graphic", "description")
 
 
 def normalize(data):
     """Return a clean settings dict whatever was stored."""
-    result = {"text_type": None, "families": {}}
+    result = {"text_type": None, "families": {}, "headings": {}}
     if not isinstance(data, dict):
         return result
     text_type = data.get("text_type")
@@ -30,6 +33,13 @@ def normalize(data):
         for category, family in families.items():
             if isinstance(category, str) and isinstance(family, str) and family.strip():
                 result["families"][category] = family.strip()
+    headings = data.get("headings")
+    if isinstance(headings, dict):
+        for category, values in headings.items():
+            if isinstance(category, str) and isinstance(values, dict):
+                kept = dict((key, values[key]) for key in _HEADING_KEYS if isinstance(values.get(key), str))
+                if kept:
+                    result["headings"][category] = kept
     return result
 
 
@@ -71,6 +81,21 @@ def assign_family(doc, category, family_name):
     data = read(doc)
     data["families"][category] = family_name
     save(doc, data, "Place Resource: legend family")
+
+
+def saved_headings(doc, category):
+    """The headings last typed for this legend category, or {}."""
+    return read(doc)["headings"].get(category, {})
+
+
+def save_headings(doc, category, headings):
+    """Remember the headings for one category (opens its own transaction). Skips the save when unchanged."""
+    data = read(doc)
+    wanted = dict((key, headings.get(key, "")) for key in _HEADING_KEYS)
+    if data["headings"].get(category) == wanted:
+        return
+    data["headings"][category] = wanted
+    save(doc, data, "Place Resource: legend headings")
 
 
 def describe(data):

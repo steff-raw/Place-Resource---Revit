@@ -23,9 +23,11 @@ class ProjectSettingsTests(unittest.TestCase):
             "text_type": "  2.5mm Arial ",
             "masters": {"Walls": "abc"},
             "families": {"Walls": " Office Wall Symbols ", "Doors": "", "Floors": 3},
+            "headings": {"Walls": {"title": "PARTITION TYPES LEGEND", "graphic": 5}, "Doors": "x"},
         })
-        self.assertEqual(data, {"text_type": "2.5mm Arial", "families": {"Walls": "Office Wall Symbols"}})
-        self.assertEqual(project_settings.normalize(None), {"text_type": None, "families": {}})
+        self.assertEqual(data, {"text_type": "2.5mm Arial", "families": {"Walls": "Office Wall Symbols"},
+                                "headings": {"Walls": {"title": "PARTITION TYPES LEGEND"}}})
+        self.assertEqual(project_settings.normalize(None), {"text_type": None, "families": {}, "headings": {}})
         self.assertIn("not set", project_settings.describe({}))
 
 

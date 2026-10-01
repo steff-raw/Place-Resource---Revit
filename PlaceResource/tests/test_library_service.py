@@ -205,6 +205,7 @@ class SettingsTests(unittest.TestCase):
         bad = copy.deepcopy(base); bad["defaults"]["family_name"] = ""; cases.append(bad)
         bad = copy.deepcopy(base); bad["defaults"]["styles"]["text_type"] = ""; cases.append(bad)
         bad = copy.deepcopy(base); bad["defaults"]["show_type_mark"] = "yes"; cases.append(bad)
+        bad = copy.deepcopy(base); bad["defaults"]["headings"] = {"title": 5}; cases.append(bad)
         bad = copy.deepcopy(base); bad["defaults"]["text_visibility_parameter"] = ""; cases.append(bad)
         bad = copy.deepcopy(base); bad["defaults"]["layout"]["width_mm"] = 5; cases.append(bad)
         bad = copy.deepcopy(base); bad["defaults"]["layout"]["text_pattern"] = None; cases.append(bad)
@@ -322,6 +323,59 @@ class StackTests(unittest.TestCase):
         self.assertEqual(tops, [0.0])
         self.assertEqual(bottom, -2.0)
         self.assertEqual(L.stack_rows([], 1.0), ([], 0.0))
+
+
+class TableTests(unittest.TestCase):
+    def test_title_header_and_rows(self):
+        table = L.table_layout(100.0, 10.0, 1.0, 4.0, 3.0, [5.0, 2.0])
+        self.assertEqual(table["split_x"], 12.0)
+        self.assertEqual(table["title"], (0.0, -6.0))
+        self.assertEqual(table["header"], (-6.0, -11.0))
+        self.assertEqual(table["rows"], [(-11.0, -18.0), (-18.0, -22.0)])
+        self.assertEqual(table["h_lines"], [0.0, -6.0, -11.0, -18.0, -22.0])
+        # Outer sides run full height; the column line starts under the title.
+        self.assertEqual(table["v_lines"], [(0.0, 0.0, -22.0), (100.0, 0.0, -22.0), (12.0, -6.0, -22.0)])
+
+    def test_rows_only(self):
+        table = L.table_layout(50.0, 8.0, 1.0, None, None, [2.0])
+        self.assertIsNone(table["title"])
+        self.assertIsNone(table["header"])
+        self.assertEqual(table["h_lines"], [0.0, -4.0])
+        self.assertEqual(len(table["v_lines"]), 3)
+
+    def test_centred_in_cell(self):
+        self.assertEqual(L.centred_top_left(0.0, 10.0, 0.0, -6.0, 4.0, 2.0), (3.0, -2.0))
+
+    def test_headings(self):
+        config = _config()
+        self.assertEqual(L.default_headings(config),
+                         {"title": "Walls LEGEND", "graphic": "CODE", "description": "DESCRIPTION"})
+        self.assertEqual(
+            L.clean_headings({"title": " PARTITION TYPES LEGEND ", "graphic": ""}, L.default_headings(config)),
+            {"title": "PARTITION TYPES LEGEND", "graphic": "", "description": "DESCRIPTION"},
+        )
+
+    def test_hash_changes_with_headings(self):
+        config = _config()
+        entries = [L.LibraryEntry("A", symbol_unique_id="x")]
+        first = S.library_hash("Walls", config, entries)
+        self.assertEqual(first, S.library_hash("Walls", config, entries, headings=L.default_headings(config)))
+        self.assertNotEqual(first, S.library_hash("Walls", config, entries, headings={"title": "PARTITIONS"}))
+
+    def test_headings_remembered_per_category(self):
+        config = _config()
+        saved = {}
+        with mock.patch("project_settings.saved_headings", return_value={"title": "PARTITION TYPES LEGEND"}), \
+                mock.patch("project_settings.save_headings", side_effect=lambda doc, cat, h: saved.update({cat: h})), \
+                mock.patch.object(dialogs, "ask_fields", return_value=["PARTITION TYPES LEGEND", "SRS CODE", " DESCRIPTION "]) as ask:
+            headings = library_ui.ask_headings(None, config, None)
+        defaults = [default for _label, default in ask.call_args[0][2]]
+        self.assertEqual(defaults, ["PARTITION TYPES LEGEND", "CODE", "DESCRIPTION"])
+        self.assertEqual(headings, {"title": "PARTITION TYPES LEGEND", "graphic": "SRS CODE", "description": "DESCRIPTION"})
+        self.assertEqual(saved, {"Walls": headings})
+        with mock.patch("project_settings.saved_headings", return_value={}), \
+                mock.patch.object(dialogs, "ask_fields", return_value=None):
+            self.assertIsNone(library_ui.ask_headings(None, config, None))
 
 
 class SourceLegendTests(unittest.TestCase):
