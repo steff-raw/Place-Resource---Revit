@@ -227,11 +227,15 @@ def sheet_codes(doc, sheet, config, library):
     return match_type_marks(library, marks)
 
 
-def update_all_library(doc, library_settings):
-    """Rebuild library legends whose rows changed. Graphic changes come from the family itself."""
+def update_all_library(doc, library_settings, only=None):
+    """``only(view, payload)``, when given, limits the update to the legends it returns True for.
+
+Rebuild library legends whose rows changed. Graphic changes come from the family itself."""
     library_settings = project_library(doc, library_settings)
     summary = {"updated": [], "unchanged": [], "skipped": [], "failed": [], "warnings": []}
     for view, payload in list(iter_generated_legends(doc, ROLE_LIBRARY_LEGEND)):
+        if only is not None and not only(view, payload):
+            continue
         category = payload.get("category")
         config = library_settings["categories"].get(category)
         if config is None:

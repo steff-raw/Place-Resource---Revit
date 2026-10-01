@@ -7,9 +7,9 @@ Requires the pyRevit CPython 3 engine. IronPython is not supported.
 
 __title__ = "Create / Update\nView Legend"
 __doc__ = (
-    "Create or update a legend from the types visible in the active view. "
-    "On a sheet, types from every plan, section and elevation on the sheet are combined "
-    "and the legend is placed on that sheet."
+    "On a sheet: update the Legend Setup legends on it, or make one if there are none. "
+    "In a Legend Setup legend: update it. In a plan, section or elevation: type legend "
+    "from legends.json."
 )
 __author__ = "Place Resource"
 
@@ -73,6 +73,47 @@ from version_adapter import element_id_value, make_element_id
 LOGGER = get_logger("create_update_view_legend")
 
 
+def _library_on_sheet(doc, uidoc, sheet):
+    """Update the Legend Setup legends made for this sheet, or make one when there are none."""
+    from identity import ROLE_LIBRARY_LEGEND, iter_generated_legends
+    from legend_library import load_library_settings
+    library_settings = load_library_settings()
+    on_sheet = [view for view, payload in iter_generated_legends(doc, ROLE_LIBRARY_LEGEND)
+                if payload.get("sheet_unique_id") == sheet.UniqueId]
+    if not on_sheet:
+        from library_ui import run_setup
+        run_setup(doc, library_settings, uidoc)
+        return
+    _update_library(doc, library_settings, lambda view, payload: payload.get("sheet_unique_id") == sheet.UniqueId)
+
+
+def _library_legend(doc, legend_view):
+    """Update the open legend if Legend Setup made it. Returns False for any other legend."""
+    from identity import ROLE_LIBRARY_LEGEND, read_view_payload
+    from legend_library import load_library_settings
+    payload = read_view_payload(legend_view)
+    if not payload or payload.get("role") != ROLE_LIBRARY_LEGEND:
+        return False
+    target = legend_view.UniqueId
+    _update_library(doc, load_library_settings(), lambda view, _payload: view.UniqueId == target)
+    return True
+
+
+def _update_library(doc, library_settings, only):
+    from library_legend_service import update_all_library
+    from reporting import print_library_batch
+    summary = update_all_library(doc, library_settings, only=only)
+    print_library_batch(summary)
+    if summary.get("failed"):
+        alert_error("Create / Update View Legend", "The update failed. The output window lists the errors.")
+    elif summary.get("skipped") and not summary.get("updated"):
+        alert_error("Create / Update View Legend", "\n".join(
+            "{0}: {1}".format(item.get("legend"), item.get("reason")) for item in summary["skipped"]))
+    elif not summary.get("updated"):
+        from dialogs import alert
+        alert("The legend is already up to date.", title="Create / Update View Legend")
+
+
 def main():
     """Validate the view, confirm the plan, then commit the legend."""
     doc = revit.doc
@@ -84,6 +125,11 @@ def main():
         raise LegendToolError("There is no active view. Open a plan, section, or elevation.")
     token = view_type_token(view)
     sheet_mode = token == "DrawingSheet"
+    if sheet_mode:
+        _library_on_sheet(doc, uidoc, view)
+        return
+    if token == "Legend" and _library_legend(doc, view):
+        return
     if token == "Legend":
         raise LegendToolError(
             "A legend cannot be the source view. Open the model view whose visible types should be listed."
