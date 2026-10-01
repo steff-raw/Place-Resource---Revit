@@ -6,6 +6,12 @@
     "type_mark_visibility_parameter": "Legend_TypeMark_Visibility",
     "text_visibility_parameter": "Text_Visibility",
     "show_type_mark": true,
+    "viewport_type_name": "No Title",
+    "headings": {
+      "title": "{category} LEGEND",
+      "graphic": "CODE",
+      "description": "DESCRIPTION"
+    },
     "template_legend_name": "_TEMPLATE - LIBRARY LEGEND",
     "output_name_pattern": "{category} LEGEND",
     "sheet_output_name_pattern": "{category} LEGEND - {sheet_number}",
@@ -15,12 +21,14 @@
       "heading_text_type": "2.5mm Arial Bold",
       "show_heading": true,
       "text_type": "2.5mm Arial",
-      "show_text": true
+      "show_text": true,
+      "border_line_style": "Thin Lines"
     },
     "layout": {
       "row_gap_mm": 3,
       "heading_gap_mm": 5,
       "text_gap_mm": 3,
+      "cell_padding_mm": 1.5,
       "width_mm": 120,
       "text_pattern": "{description}"
     },

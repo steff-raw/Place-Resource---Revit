@@ -176,6 +176,36 @@ def align_top_left(doc, viewport, point):
     return list(transaction.warnings)
 
 
+def set_viewport_type(doc, viewport, type_name):
+    """Give the viewport the viewport type named ``type_name`` (e.g. No Title). Opens its own transaction.
+
+    Returns a list of warnings. Nothing changes when the type is not in the model.
+    """
+    if not type_name:
+        return []
+    wanted = type_name.strip().lower()
+    match = None
+    try:
+        for type_id in viewport.GetValidTypes():
+            element = doc.GetElement(type_id)
+            name = getattr(element, "Name", "") if element is not None else ""
+            if (name or "").strip().lower() == wanted:
+                match = type_id
+                break
+    except Exception:
+        match = None
+    if match is None:
+        return [
+            "Viewport type '{0}' is not in this model, so the legend title shows. Load or make that "
+            "viewport type, or change viewport_type_name in library_legends.json.".format(type_name)
+        ]
+    if element_id_value(viewport.GetTypeId()) == element_id_value(match):
+        return []
+    with TransactionContext(doc, "Legend viewport type") as transaction:
+        viewport.ChangeTypeId(match)
+    return list(transaction.warnings)
+
+
 def _with_sheet_open(uidoc, sheet, action):
     """Run ``action(uidoc)`` with the sheet as the active view, then switch back."""
     previous = uidoc.ActiveView

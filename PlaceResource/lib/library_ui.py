@@ -8,7 +8,7 @@ before any transaction. Model changes happen only in library_legend_service.
 import dialogs
 import trail
 from identity import find_library_legend, read_view_payload
-from legend_library import match_type_marks
+from legend_library import entries_for_codes
 from library_legend_service import build_library_legend, project_library
 from reporting import alert_error, print_library_report
 from symbol_library import family_entries, find_family, legend_families
@@ -140,12 +140,16 @@ def run_setup(doc, library_settings, uidoc=None):
     show_type_mark = ask_type_mark(config, existing)
     if show_type_mark is None:
         return None
+    headings = ask_headings(doc, config, existing)
+    if headings is None:
+        return None
     if not _confirm(category, config, chosen, existing, show_type_mark):
         return None
     if not _ensure_text(doc, config):
         return None
     trail.step("building legend for {0}".format(category))
-    report = build_library_legend(doc, config, chosen, sheet=None, legend_view=existing, show_type_mark=show_type_mark)
+    report = build_library_legend(doc, config, chosen, sheet=None, legend_view=existing,
+                                  show_type_mark=show_type_mark, headings=headings)
     print_library_report(report)
     if report["status"] == "failed":
         alert_error("Legend Setup", "\n".join(report["errors"]))
@@ -153,8 +157,12 @@ def run_setup(doc, library_settings, uidoc=None):
 
 
 def run_sheet_legend(doc, uidoc, sheet, category, library_settings):
-    """Place Legend: rows for one category on one sheet, then place the legend. Returns the report or None."""
-    from collectors import type_marks_for_source
+    """Place Legend: rows for one category on one sheet, then place the legend. Returns the report or None.
+
+    For model categories (Walls, Doors, ...) the rows are the family types whose name
+    matches a Type Mark in the views on the sheet, with no tick list. Other categories
+    (Fire Strategy, ...) have nothing to match, so the user ticks the rows.
+    """
     config = dict(project_library(doc, library_settings)["categories"][category])
     if find_family(doc, config["family_name"]) is None:
         family = choose_family(doc, category, config)
@@ -162,21 +170,14 @@ def run_sheet_legend(doc, uidoc, sheet, category, library_settings):
             return None
         config["family_name"] = family
     existing = find_library_legend(doc, category, sheet)
-    if existing is not None:
-        preselected = (read_view_payload(existing) or {}).get("codes") or []
-        why = "Ticked: the rows already in '{0}'.".format(existing.Name)
-    elif config.get("revit_category"):
-        entries, _problems = family_entries(doc, config)
-        marks = type_marks_for_source(doc, sheet, config["revit_category"], config["source_view_types"])
-        preselected = match_type_marks(entries, marks)
-        why = "Ticked: types that match a Type Mark in the views on this sheet ({0} found).".format(len(preselected))
+    if config.get("revit_category"):
+        chosen = _rows_from_sheet(doc, sheet, config)
     else:
-        preselected = []
-        why = "Tick the rows that apply to this sheet."
-    chosen = choose_rows(
-        doc, config, preselected,
-        "Types of family '{0}'. {1} Add or remove rows as needed.".format(config["family_name"], why),
-    )
+        preselected = (read_view_payload(existing) or {}).get("codes") or [] if existing is not None else []
+        chosen = choose_rows(
+            doc, config, preselected,
+            "Types of family '{0}'. Tick the rows that apply to this sheet.".format(config["family_name"]),
+        )
     if not chosen:
         return None
     size = choose_width(uidoc, sheet, config, existing)
@@ -186,11 +187,14 @@ def run_sheet_legend(doc, uidoc, sheet, category, library_settings):
     show_type_mark = ask_type_mark(config, existing)
     if show_type_mark is None:
         return None
+    headings = ask_headings(doc, config, existing)
+    if headings is None:
+        return None
     if not _ensure_text(doc, config):
         return None
     trail.step("building sheet legend for {0}".format(category))
     report = build_library_legend(doc, config, chosen, sheet=sheet, legend_view=existing,
-                                  width_mm=width_mm, show_type_mark=show_type_mark)
+                                  width_mm=width_mm, show_type_mark=show_type_mark, headings=headings)
     if report["status"] in ("created", "updated"):
         legend_view = doc.GetElement(existing.Id) if existing is not None else _view_by_id(doc, report["legend_view_id"])
         try:
@@ -253,6 +257,58 @@ def choose_width(uidoc, sheet, config, existing):
         default = text
 
 
+def _rows_from_sheet(doc, sheet, config):
+    """Family entries matching the Type Marks in the sheet's views. Shows a message and returns None when none match."""
+    from library_legend_service import sheet_codes
+    from placement_service import sheet_label
+    entries, problems = family_entries(doc, config)
+    if problems:
+        dialogs.alert("\n".join(problems), title="Legend library")
+        return None
+    trail.step("reading Type Marks in the views on the sheet")
+    codes = sheet_codes(doc, sheet, config, entries)
+    if not codes:
+        dialogs.alert(
+            "No {0} in the views on sheet {1} has a Type Mark that matches a type of family '{2}'.\n\n"
+            "Family type names must be the Type Marks exactly, e.g. IWS-105.".format(
+                config["name"].lower(), sheet_label(sheet), config["family_name"]
+            ),
+            title="{0} legend".format(config["name"]),
+        )
+        return None
+    return entries_for_codes(entries, codes)
+
+
+def ask_headings(doc, config, existing):
+    """Ask for the title and the two column headings. Returns a dict, or None when cancelled.
+
+    The boxes start with this legend's headings, else the ones last typed for this
+    category (saved in the model), else the defaults from the settings. What is typed
+    is saved for next time.
+    """
+    from legend_library import clean_headings, default_headings
+    from project_settings import save_headings, saved_headings
+    current = clean_headings(saved_headings(doc, config["name"]), default_headings(config))
+    if existing is not None:
+        current = clean_headings((read_view_payload(existing) or {}).get("headings"), current)
+    values = dialogs.ask_fields(
+        "{0} legend headings".format(config["name"]),
+        "Headings for the legend. Leave a box empty to leave that heading out. "
+        "They are remembered for the next {0} legend.".format(config["name"]),
+        [
+            ("Main heading", current["title"]),
+            ("Graphic column heading", current["graphic"]),
+            ("Description column heading", current["description"]),
+        ],
+    )
+    if values is None:
+        return None
+    headings = {"title": values[0].strip(), "graphic": values[1].strip(), "description": values[2].strip()}
+    trail.step("saving headings for {0}".format(config["name"]))
+    save_headings(doc, config["name"], headings)
+    return headings
+
+
 def ask_type_mark(config, existing):
     """Ask whether the Type Mark shows above each symbol. Returns True/False, or None when cancelled.
 
@@ -279,12 +335,14 @@ def _put_on_sheet(doc, uidoc, sheet, legend_view, config, corner, report):
         interactive_place,
         legend_viewport_on_sheet,
         place_on_sheet,
+        set_viewport_type,
         sheet_label,
     )
     if legend_view is None:
         return
     viewport = legend_viewport_on_sheet(doc, sheet, legend_view)
     if viewport is not None:
+        report["warnings"].extend(set_viewport_type(doc, viewport, config.get("viewport_type_name")))
         if corner is None:
             report["notices"].append("The legend is already on '{0}'. Its position was kept.".format(sheet_label(sheet)))
             return
@@ -294,12 +352,16 @@ def _put_on_sheet(doc, uidoc, sheet, legend_view, config, corner, report):
     if corner is not None:
         viewport, warnings = place_on_sheet(doc, sheet, legend_view, corner)
         report["warnings"].extend(warnings or [])
+        # The title is hidden first, so the box outline used for lining up is the legend itself.
+        report["warnings"].extend(set_viewport_type(doc, viewport, config.get("viewport_type_name")))
         report["warnings"].extend(align_top_left(doc, viewport, corner))
         return
     viewport, warnings = interactive_place(doc, uidoc, sheet, legend_view, config, active_sheet=sheet)
     report["warnings"].extend(warnings or [])
     if viewport is None:
         report["warnings"].append("The legend was saved and was not placed on the sheet.")
+    else:
+        report["warnings"].extend(set_viewport_type(doc, viewport, config.get("viewport_type_name")))
 
 
 def _ensure_text(doc, config):

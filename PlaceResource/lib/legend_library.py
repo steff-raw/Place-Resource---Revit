@@ -22,6 +22,12 @@ DEFAULTS = {
     "type_mark_visibility_parameter": "Legend_TypeMark_Visibility",
     "text_visibility_parameter": "Text_Visibility",
     "show_type_mark": True,
+    "viewport_type_name": "No Title",
+    "headings": {
+        "title": "{category} LEGEND",
+        "graphic": "CODE",
+        "description": "DESCRIPTION",
+    },
     "template_legend_name": "_TEMPLATE - LIBRARY LEGEND",
     "output_name_pattern": "{category} LEGEND",
     "sheet_output_name_pattern": "{category} LEGEND - {sheet_number}",
@@ -32,11 +38,13 @@ DEFAULTS = {
         "show_heading": True,
         "text_type": "2.5mm Arial",
         "show_text": True,
+        "border_line_style": "Thin Lines",
     },
     "layout": {
         "row_gap_mm": 3,
         "heading_gap_mm": 5,
         "text_gap_mm": 3,
+        "cell_padding_mm": 1.5,
         "width_mm": 120,
         "text_pattern": "{description}",
     },
@@ -237,6 +245,69 @@ def parse_width_cm(text):
     return number * 10.0
 
 
+HEADING_KEYS = ("title", "graphic", "description")
+
+
+def default_headings(config):
+    """Heading texts from the settings, with {category} filled in."""
+    return dict(
+        (key, config["headings"][key].replace("{category}", config["name"]).strip())
+        for key in HEADING_KEYS
+    )
+
+
+def clean_headings(values, fallback):
+    """Return a full headings dict: given values where present, else the fallback."""
+    result = {}
+    for key in HEADING_KEYS:
+        value = (values or {}).get(key)
+        result[key] = value.strip() if isinstance(value, str) else fallback.get(key, "")
+    return result
+
+
+def table_layout(width, graphic_width, padding, title_height, header_height, row_heights):
+    """Lay out a bordered legend table, top at y = 0, growing down (y negative).
+
+    All values are in the same units. ``title_height`` / ``header_height`` are the
+    text heights, or None when that row is left out. Returns a dict with:
+    ``split_x`` (the line between the graphic and description columns), ``title``,
+    ``header`` (each (top, bottom) or None), ``rows`` (list of (top, bottom)),
+    ``h_lines`` (y values of full-width lines), ``v_lines`` ((x, top, bottom) each).
+    """
+    split_x = graphic_width + 2 * padding
+    y = 0.0
+    result = {"split_x": split_x, "title": None, "header": None, "rows": []}
+    h_lines = [0.0]
+    if title_height is not None:
+        bottom = y - (title_height + 2 * padding)
+        result["title"] = (y, bottom)
+        y = bottom
+        h_lines.append(y)
+    table_top = y
+    if header_height is not None:
+        bottom = y - (header_height + 2 * padding)
+        result["header"] = (y, bottom)
+        y = bottom
+        h_lines.append(y)
+    for height in row_heights:
+        bottom = y - (float(height) + 2 * padding)
+        result["rows"].append((y, bottom))
+        y = bottom
+        h_lines.append(y)
+    result["h_lines"] = sorted(set(h_lines), reverse=True)
+    result["v_lines"] = [(0.0, 0.0, y), (float(width), 0.0, y)]
+    if y < table_top:
+        result["v_lines"].append((split_x, table_top, y))
+    result["bottom"] = y
+    return result
+
+
+def centred_top_left(cell_left, cell_right, cell_top, cell_bottom, width, height):
+    """Top-left point that centres a box of ``width`` x ``height`` in a cell."""
+    return (cell_left + (cell_right - cell_left - width) / 2.0,
+            cell_top - (cell_top - cell_bottom - height) / 2.0)
+
+
 def _merge(base, override):
     merged = copy.deepcopy(base)
     for key, value in (override or {}).items():
@@ -253,6 +324,13 @@ def _validate_category(config, prefix):
                 "output_name_pattern", "sheet_output_name_pattern"):
         if not isinstance(config.get(key), str) or not config[key].strip():
             raise ConfigurationError("{0}: {1} must be a non-empty string.".format(prefix, key))
+    headings = config.get("headings")
+    if not isinstance(headings, dict) or any(not isinstance(headings.get(key), str) for key in HEADING_KEYS):
+        raise ConfigurationError("{0}: headings needs title, graphic and description texts.".format(prefix))
+    if not isinstance(config.get("viewport_type_name"), str):
+        raise ConfigurationError("{0}: viewport_type_name must be text, e.g. No Title.".format(prefix))
+    if not isinstance((config.get("styles") or {}).get("border_line_style", ""), str):
+        raise ConfigurationError("{0}: styles.border_line_style must name a line style.".format(prefix))
     if not isinstance(config.get("show_type_mark"), bool):
         raise ConfigurationError("{0}: show_type_mark must be true or false.".format(prefix))
     scale = config.get("scale")
@@ -271,7 +349,7 @@ def _validate_category(config, prefix):
     if not isinstance(styles.get("show_text"), bool):
         raise ConfigurationError("{0}: styles.show_text must be true or false.".format(prefix))
     layout = config.get("layout") or {}
-    for key in ("row_gap_mm", "heading_gap_mm", "text_gap_mm"):
+    for key in ("row_gap_mm", "heading_gap_mm", "text_gap_mm", "cell_padding_mm"):
         value = layout.get(key)
         if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
             raise ConfigurationError("{0}: layout.{1} must be a number of millimetres, 0 or more.".format(prefix, key))

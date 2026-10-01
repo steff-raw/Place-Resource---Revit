@@ -116,16 +116,19 @@ The library lives in Revit as **one symbol family per category**:
 
 On a sheet, first choose which legends the sheet shows. For each library category:
 
-- **Walls, Floors, Ceilings, Doors:** types whose name matches a Type Mark in the sheet's plans, sections or elevations start ticked. Add or remove as needed.
-- **Width:** after ticking the rows, choose one:
+- **Walls, Floors, Ceilings, Doors:** no tick list. The rows are the family types whose name matches a Type Mark in the sheet's plans, sections or elevations. Types not on the sheet are left out.
+- **Other categories (Fire Strategy, ...):** nothing to match in the model, so you tick the rows.
+- **Width:** choose one:
   - **Draw a box on the sheet:** the box width sets the legend width, and the legend's top-left goes to the box's top-left corner.
   - **Type the width in cm** (2 to 100), then pick a point.
   - **Keep the current width** (existing legends).
 - **Type Mark:** then choose to show or hide the Type Mark above each symbol (asked every time; your last answer is listed first; Update All keeps it).
-- **Text wrapping:** text width = legend width - widest graphic - `text_gap_mm`. Each row is as tall as its graphic or its text, whichever is taller.
+- **Headings:** main heading, graphic column heading and description column heading (e.g. PARTITION TYPES LEGEND / SRS CODE / DESCRIPTION). The boxes start with what you typed last time for that category, saved in the model. Leave a box empty to leave that heading out.
+- **Table:** bordered like a schedule. Main heading row across the top, column headings row, then one row per type: graphic centred in the left column, description in the right column, wrapped to fit. Lines use `styles.border_line_style` (default Thin Lines).
+- **Viewport title:** the viewport gets the `No Title` viewport type (`viewport_type_name`). If that type is not in the model, the report says so and the title shows.
 - **Result:** the sheet legend `<Category> LEGEND - <sheet number>` is created or updated and placed on the sheet. The width is stored on the legend and reused by Update All. An existing one keeps its position unless you drew a box.
 
-**Update All** adds or removes rows only when the stored rows or the family's types changed; graphics update through the family itself. **Audit** reports:
+**Update All** rebuilds a legend only when something changed. Sheet legends for Walls, Floors, Ceilings and Doors are refreshed from the Type Marks on the sheet; headings, width and the Type Mark choice are kept. **Audit** reports:
 
 - types deleted from the family
 - a family that is not loaded
