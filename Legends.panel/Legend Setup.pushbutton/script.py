@@ -8,9 +8,8 @@ tool places one symbol per type in the category legend, stacked under a heading.
 
 __title__ = "Legend\nSetup"
 __doc__ = (
-    "Create or update a library legend: choose a category (Walls, Fire Strategy, ...), "
-    "its symbol family and the types. With a sheet open, the legend is made for that sheet "
-    "and named with its sheet number."
+    "Make or update a library legend on a sheet: choose a category (Walls, Fire Strategy, ...) "
+    "and its symbol family. Uses the open sheet, or asks which sheet."
 )
 __author__ = "Place Resource"
 

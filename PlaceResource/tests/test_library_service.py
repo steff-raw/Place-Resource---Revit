@@ -512,30 +512,5 @@ class TypeMarkTests(unittest.TestCase):
             self.assertEqual(collectors.type_mark(_Element(2, "type")), "")
 
 
-class RowChoiceTests(unittest.TestCase):
-    def test_preselection_maps_codes_to_indexes(self):
-        entries = [L.LibraryEntry("IWS-105"), L.LibraryEntry("IWS-110"), L.LibraryEntry("EWS-01")]
-        captured = {}
-
-        def _fake_many(title, labels, preselected=None, prompt=None, button_text="OK", details=None):
-            captured["preselected"] = preselected
-            return [0, 2]
-
-        with mock.patch.object(library_ui, "family_entries", return_value=(entries, [])), \
-                mock.patch.object(dialogs, "choose_many_from_list", side_effect=_fake_many):
-            chosen = library_ui.choose_rows(None, _config(), ["ews-01", "IWS-110", "OLD"], "prompt")
-        self.assertEqual(captured["preselected"], [1, 2])
-        self.assertEqual([entry.code for entry in chosen], ["IWS-105", "EWS-01"])
-
-    def test_unusable_family_stops_with_a_message(self):
-        with mock.patch.object(library_ui, "family_entries", return_value=([], ["Family 'X' is not loaded."])), \
-                mock.patch.object(dialogs, "alert") as alert:
-            self.assertIsNone(library_ui.choose_rows(None, _config(), [], "prompt"))
-        self.assertIn("not loaded", alert.call_args[0][0])
-
-    def test_checked_indexes_are_clean(self):
-        self.assertEqual(dialogs.checked_indexes([3, 1, 1, -1, 9], 4), [1, 3])
-
-
 if __name__ == "__main__":
     unittest.main()

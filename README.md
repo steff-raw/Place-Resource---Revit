@@ -103,14 +103,14 @@ The library lives in Revit as **one symbol family per category**:
 
 ### Legend Setup
 
-- **With a sheet open:** the legend is made for that sheet, named `<Category> LEGEND - <sheet number>`, and placed on it (same steps as Place Legend on Sheet).
-- **With any other view open:** the category legend `<Category> LEGEND`, not tied to a sheet.
+- **Always for a sheet:** the open sheet, or the sheet you pick when another view is open. The legend is named `<Category> LEGEND - <sheet number>` and placed on it (same steps as Place Legend on Sheet).
+- **No tick list:** Walls, Floors, Ceilings and Doors use the types matching Type Marks on the sheet; other categories use every type of the family.
 - **No template needed:** a new legend is copied from `_TEMPLATE - LIBRARY LEGEND` if it exists, otherwise from any legend view in the model (the view only, not its contents). Revit's API cannot make a legend view from nothing, so a model with no legend at all needs one made by hand once: View > Legends > Legend.
 
 1. Run **Place Resources > Legend Setup** and choose a category. The list shows each category's family and how many types it has.
 2. Pick the symbol family for that category from the families loaded in the model. The pick is saved in the model, so each project can use its own family.
-3. Tick the types. A new legend starts with all ticked; an existing one starts with its current rows.
-4. Confirm. The legend `<Category> LEGEND` is created or updated: graphic on the left, description on the right, one row per type, under a heading. Width: the width already stored on the legend, else `layout.width_mm`.
+3. Pick the sheet (skipped when a sheet is open).
+4. Width (draw a box or type cm), Type Mark on/off, headings. The legend is built as a bordered table and placed on the sheet.
 
 ### Place Legend on Sheet (library legends)
 
@@ -118,7 +118,7 @@ On a sheet, first choose which legends the sheet shows. For each library categor
 
 - **Walls, Floors, Ceilings, Doors:** no tick list. The rows are the family types whose name matches a Type Mark in the sheet's plans, sections or elevations. Types not on the sheet are left out.
 - **Matching:** each wall's Type Mark (from the wall type) is compared with the family type name and the family's `Legend_TypeMark` value. Case, spaces and dash style are ignored (`IWS - 105` matches `IWS-105`). Walls in linked models shown in the view count too. If nothing matches, the message lists the views checked, the Type Marks found and the family types.
-- **Other categories (Fire Strategy, ...):** nothing to match in the model, so you tick the rows.
+- **Other categories (Fire Strategy, ...):** nothing to match in the model, so every type of the family is used.
 - **Width:** choose one:
   - **Draw a box on the sheet:** the box width sets the legend width, and the legend's top-left goes to the box's top-left corner.
   - **Type the width in cm** (2 to 100), then pick a point.

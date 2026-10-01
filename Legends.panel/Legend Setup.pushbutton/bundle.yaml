@@ -1,6 +1,6 @@
 title: "Legend\nSetup"
 tooltip: >
-  Pick a category and its symbol family, tick the types, and a legend is made
-  with one symbol per type.
+  Pick a category and its symbol family. The legend is made for the open sheet
+  (or a sheet you pick) and placed on it.
 author: Place Resource
 context: doc-project
