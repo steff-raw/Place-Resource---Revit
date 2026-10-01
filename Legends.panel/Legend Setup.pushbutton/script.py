@@ -7,7 +7,7 @@ Requires the pyRevit CPython 3 engine. IronPython is not supported.
 
 __title__ = "Legend\nSetup"
 __doc__ = (
-    "Set the legend text style and the symbol family for each legend category "
+    "Set the heading and description fonts and the symbol family for each legend category "
     "(Walls, Fire Strategy, ...). Saved in this model."
 )
 __author__ = "Place Resource"

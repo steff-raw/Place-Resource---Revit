@@ -62,7 +62,7 @@ def choose_family(doc, category, config):
         names,
         prompt="Pick the symbol family for {0}. Its type names are the Type Marks. "
                "Current: {1}".format(category, current if preselected is not None else "none"),
-        button_text="Next",
+        button_text="Select",
         details=["{0} type{1}".format(count, "" if count == 1 else "s") for _name, count in families],
         selected_index=preselected or 0,
     )
@@ -76,38 +76,50 @@ def choose_family(doc, category, config):
     return chosen
 
 
-TEXT_STYLE_ROW = "Legend text style"
+HEADING_FONT_ROW = "Heading font"
+TEXT_FONT_ROW = "Description font"
 
 
 def run_setup(doc, library_settings):
-    """Legend Setup: the text style and the symbol family for each legend category.
+    """Legend Setup: the heading and description fonts and the symbol family for each legend category.
 
-    Shows one list. Pick a row to change it; the list comes back until Close.
-    Everything is saved in the model.
+    Shows one list. Pick a row and press Change; press Done to finish. Everything
+    is saved in the model.
     """
     from project_settings import read
+    from ui_service import choose_text_type
     while True:
         library = project_library(doc, library_settings)
         names = list(library["categories"].keys())
-        current = read(doc)["text_type"]
-        labels = [TEXT_STYLE_ROW] + names
-        details = [current or "not set"]
+        saved = read(doc)
+        labels = [HEADING_FONT_ROW, TEXT_FONT_ROW] + names
+        details = [
+            saved["heading_text_type"] or (saved["text_type"] and "same as description font") or "not set",
+            saved["text_type"] or "not set",
+        ]
+        missing = 0 if saved["text_type"] else 1
         for name in names:
             family = library["categories"][name]["family_name"]
-            details.append(family if find_family(doc, family) is not None else "{0} (not loaded)".format(family))
+            if find_family(doc, family) is not None:
+                details.append(family)
+            else:
+                details.append("{0} (not loaded)".format(family))
+                missing += 1
+        prompt = ("All set. Press Done to finish, or pick a row to change it." if not missing else
+                  "{0} still to set. Pick a row and press Change. Press Done when finished.".format(missing))
         index = dialogs.choose_from_list(
-            "Legend Setup", labels,
-            prompt="Pick a row to change it, or press Close when done. Saved in this model.",
-            button_text="Change", details=details, cancel_text="Close",
+            "Legend Setup", labels, prompt=prompt + " Saved in this model.",
+            button_text="Change", details=details, cancel_text="Done",
         )
         if index is None:
             return
         if index == 0:
-            from ui_service import choose_text_type
-            choose_text_type(doc)
-            continue
-        category = names[index - 1]
-        choose_family(doc, category, dict(library["categories"][category]))
+            choose_text_type(doc, key="heading_text_type")
+        elif index == 1:
+            choose_text_type(doc, key="text_type")
+        else:
+            category = names[index - 2]
+            choose_family(doc, category, dict(library["categories"][category]))
 
 
 def choose_sheet(doc):

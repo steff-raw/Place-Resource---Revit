@@ -93,7 +93,7 @@ def prepare(doc, config, entries, need_template):
         )
     if config["styles"].get("show_heading"):
         try:
-            resolved["heading_type"] = resolve_text_type(doc, config["styles"]["heading_text_type"])
+            resolved["heading_type"] = resolve_text_type(doc, config["styles"]["heading_text_type"], role="heading")
         except LegendOperationError as ex:
             problems.append(str(ex))
     if config["styles"].get("show_text", True):

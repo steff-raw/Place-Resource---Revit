@@ -177,10 +177,11 @@ def choose_settings_action(doc=None):
     return None if index is None else SETTINGS_ACTIONS[index]
 
 
-def choose_text_type(doc, reason=None):
-    """Pick the legend text style from the project's text note types and save it in the model.
+def choose_text_type(doc, reason=None, key="text_type"):
+    """Pick a legend text style from the project's text note types and save it in the model.
 
-    Returns the chosen name, or None when cancelled.
+    ``key`` is "text_type" (descriptions, and headings without their own style) or
+    "heading_text_type". Returns the chosen name, or None when cancelled.
     """
     from legend_component_service import text_type_names
     import project_settings
@@ -188,19 +189,20 @@ def choose_text_type(doc, reason=None):
     if not names:
         dialogs.alert("This project has no text types.", title="Legend text style")
         return None
-    current = project_settings.read(doc)["text_type"]
+    current = project_settings.read(doc)[key]
     labels = ["{0}{1}".format(name, "   (current)" if name == current else "") for name in names]
-    prompt = "Choose the text type for legend headings and labels."
+    what = "legend headings" if key == "heading_text_type" else "legend descriptions"
+    prompt = "Choose the font (text type) for {0}.".format(what)
     if reason:
         prompt = "{0} {1}".format(reason, prompt)
     index = dialogs.choose_from_list(
-        "Legend text style", labels, prompt=prompt, button_text="Use this style",
+        "Legend font", labels, prompt=prompt, button_text="Select",
         selected_index=names.index(current) if current in names else 0,
     )
     if index is None:
         return None
     data = project_settings.read(doc)
-    data["text_type"] = names[index]
+    data[key] = names[index]
     project_settings.save(doc, data, "Place Resource: legend text style")
     return names[index]
 

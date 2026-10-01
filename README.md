@@ -60,10 +60,11 @@ The buttons look for `lib` in: `PLACE_RESOURCE_HOME`, then `PlaceResource` next 
 
 Settings for this model only:
 
-- **Legend text style:** the text type for headings and descriptions.
+- **Heading font:** text type for the main and column headings (uses the description font when not set).
+- **Description font:** text type for the descriptions.
 - **One row per category** (Walls, Fire Strategy, ...): pick its symbol family from the Generic Annotation and Detail Item families loaded in the model.
 
-Pick a row to change it; press Close when done. Everything is saved in the model.
+Pick a row and press Change; press Done to finish. The window says when everything is set. Everything is saved in the model.
 
 ### Place Legend on Sheet
 

@@ -25,9 +25,9 @@ class ProjectSettingsTests(unittest.TestCase):
             "families": {"Walls": " Office Wall Symbols ", "Doors": "", "Floors": 3},
             "headings": {"Walls": {"title": "PARTITION TYPES LEGEND", "graphic": 5}, "Doors": "x"},
         })
-        self.assertEqual(data, {"text_type": "2.5mm Arial", "families": {"Walls": "Office Wall Symbols"},
+        self.assertEqual(data, {"text_type": "2.5mm Arial", "heading_text_type": None, "families": {"Walls": "Office Wall Symbols"},
                                 "headings": {"Walls": {"title": "PARTITION TYPES LEGEND"}}})
-        self.assertEqual(project_settings.normalize(None), {"text_type": None, "families": {}, "headings": {}})
+        self.assertEqual(project_settings.normalize(None), {"text_type": None, "heading_text_type": None, "families": {}, "headings": {}})
         self.assertIn("not set", project_settings.describe({}))
 
 
@@ -59,6 +59,20 @@ class TextStyleTests(unittest.TestCase):
         with mock.patch.object(legend_component_service, "find_text_type", side_effect=_find), \
                 mock.patch.object(project_settings, "text_type_name", return_value="Missing"):
             self.assertEqual(legend_component_service.resolve_text_type(None, "2.5mm Arial"), "2.5mm Arial")
+
+    def test_heading_font_then_description_font(self):
+        def _find(doc, name):
+            return name
+
+        with mock.patch.object(legend_component_service, "find_text_type", side_effect=_find), \
+                mock.patch.object(project_settings, "text_type_name", return_value="Body 2.5"), \
+                mock.patch.object(project_settings, "heading_text_type_name", return_value="Bold 3.5"):
+            self.assertEqual(legend_component_service.resolve_text_type(None, "x", role="heading"), "Bold 3.5")
+            self.assertEqual(legend_component_service.resolve_text_type(None, "x"), "Body 2.5")
+        with mock.patch.object(legend_component_service, "find_text_type", side_effect=_find), \
+                mock.patch.object(project_settings, "text_type_name", return_value="Body 2.5"), \
+                mock.patch.object(project_settings, "heading_text_type_name", return_value=None):
+            self.assertEqual(legend_component_service.resolve_text_type(None, "x", role="heading"), "Body 2.5")
 
     def test_picker_only_when_needed(self):
         with mock.patch.object(legend_component_service, "text_types_resolve", return_value=True), \
