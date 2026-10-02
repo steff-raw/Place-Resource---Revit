@@ -162,18 +162,136 @@ def pick_sheet_box(uidoc, sheet):
     return DB.XYZ(x, y, 0), width
 
 
-def align_top_left(doc, viewport, point):
-    """Move a viewport so the top-left of its box sits on ``point``. Opens its own transaction."""
+def table_corner_on_sheet(doc, viewport):
+    """Where the legend table's top-left corner (view point 0,0) is on the sheet. Returns an XYZ."""
+    return corner_estimates(doc, viewport)[0][1]
+
+
+def corner_estimates(doc, viewport):
+    """Every available estimate of the table corner on the sheet, best first: [(method, XYZ)].
+
+    1. transform: Revit's view-to-sheet transforms (Revit 2022+).
+    2. centre: the viewport box centre is the centre of what the legend draws, so the
+       corner follows from the legend's content extents and its scale. The margin Revit
+       keeps around the contents is the same on all sides, so it cancels out.
+    3. outline: top-left of the viewport outline (includes that margin; last resort).
+    """
     DB = get_db()
-    with TransactionContext(doc, "Line up legend with the box") as transaction:
-        outline = viewport.GetBoxOutline()
-        low = outline.MinimumPoint
-        high = outline.MaximumPoint
+    found = []
+    point = view_point_on_sheet(doc, viewport, 0.0, 0.0)
+    if point is not None:
+        found.append(("transform", point))
+    point = _corner_from_centre(doc, viewport)
+    if point is not None:
+        found.append(("centre", point))
+    outline = viewport.GetBoxOutline()
+    found.append(("outline", DB.XYZ(outline.MinimumPoint.X, outline.MaximumPoint.Y, 0)))
+    return found
+
+
+def _corner_from_centre(doc, viewport):
+    DB = get_db()
+    try:
+        view = doc.GetElement(viewport.ViewId)
+        box = content_box(doc, view)
+        if box is None:
+            return None
+        scale = float(view.Scale)
         centre = viewport.GetBoxCenter()
-        dx = point.X - low.X
-        dy = point.Y - high.Y
+        mid_x = (box[0] + box[2]) / 2.0
+        mid_y = (box[1] + box[3]) / 2.0
+        return DB.XYZ(centre.X + (0.0 - mid_x) / scale, centre.Y + (0.0 - mid_y) / scale, 0)
+    except Exception:
+        return None
+
+
+def content_box(doc, view):
+    """(min x, min y, max x, max y) of everything drawn in the view, in view units, or None."""
+    DB = get_db()
+    box = None
+    for element in DB.FilteredElementCollector(doc).WherePasses(DB.ElementOwnerViewFilter(view.Id)):
+        if getattr(element, "Category", None) is None:
+            continue
+        try:
+            bounds = element.get_BoundingBox(view)
+        except Exception:
+            bounds = None
+        if bounds is None:
+            continue
+        current = (bounds.Min.X, bounds.Min.Y, bounds.Max.X, bounds.Max.Y)
+        box = current if box is None else (
+            min(box[0], current[0]), min(box[1], current[1]), max(box[2], current[2]), max(box[3], current[3])
+        )
+    return box
+
+
+def view_point_on_sheet(doc, viewport, x, y):
+    """Sheet position of the view point (x, y), or None when Revit cannot tell (older API)."""
+    DB = get_db()
+    try:
+        view = doc.GetElement(viewport.ViewId)
+        to_sheet = viewport.GetProjectionToSheetTransform()
+        transforms = view.GetModelToProjectionTransforms()
+        if transforms is None or transforms.Count == 0:
+            return None
+        to_projection = transforms[0].GetModelToProjectionTransform()
+        return to_sheet.OfPoint(to_projection.OfPoint(DB.XYZ(x, y, 0)))
+    except Exception:
+        return None
+
+
+def placed_width_check(doc, viewport, width_view, width_mm):
+    """Warnings when the table's width on the sheet differs from the asked width by more than 1 mm."""
+    from units import internal_to_mm
+    # Called after a committed transaction, so the document is already regenerated.
+    left = view_point_on_sheet(doc, viewport, 0.0, 0.0)
+    right = view_point_on_sheet(doc, viewport, width_view, 0.0)
+    if left is None or right is None:
+        return []
+    placed = internal_to_mm(abs(right.X - left.X))
+    if abs(placed - width_mm) <= 1.0:
+        return []
+    return ["The legend is {0:.0f} mm wide on the sheet but {1:.0f} mm was asked for. Check the legend "
+            "view scale.".format(placed, width_mm)]
+
+
+def move_table_corner_to(doc, viewport, point):
+    """Move the viewport so the table's top-left corner sits on ``point``. Needs an open transaction.
+
+    Returns the method used. Moves twice at most: the second pass corrects any
+    change Revit makes to the viewport box after the first move.
+    """
+    DB = get_db()
+    method = "outline"
+    for _attempt in range(2):
+        doc.Regenerate()
+        method, current = corner_estimates(doc, viewport)[0]
+        dx = point.X - current.X
+        dy = point.Y - current.Y
+        if abs(dx) < 1e-6 and abs(dy) < 1e-6:
+            break
+        centre = viewport.GetBoxCenter()
         viewport.SetBoxCenter(DB.XYZ(centre.X + dx, centre.Y + dy, centre.Z))
-    return list(transaction.warnings)
+    return method
+
+
+def align_top_left(doc, viewport, point):
+    """Put the legend table's top-left corner on ``point`` (the corner of the drawn box). Opens its own transaction.
+
+    Returns (warnings, notes): notes list the box corner, where the table corner
+    ended up by each method, and the method used, in mm, for checking placement.
+    """
+    from units import internal_to_mm
+    with TransactionContext(doc, "Line up legend with the box") as transaction:
+        method = move_table_corner_to(doc, viewport, point)
+        doc.Regenerate()
+        estimates = corner_estimates(doc, viewport)
+    notes = ["Box corner: ({0:.1f}, {1:.1f}) mm. Lined up by: {2}.".format(
+        internal_to_mm(point.X), internal_to_mm(point.Y), method)]
+    for name, found in estimates:
+        notes.append("Table corner by {0}: ({1:.1f}, {2:.1f}) mm.".format(
+            name, internal_to_mm(found.X), internal_to_mm(found.Y)))
+    return list(transaction.warnings), notes
 
 
 def set_viewport_type(doc, viewport, type_name):

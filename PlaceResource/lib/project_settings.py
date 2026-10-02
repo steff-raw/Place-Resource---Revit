@@ -54,9 +54,15 @@ def read(doc):
 
 
 def write(doc, data):
-    """Save the settings. The caller must have a transaction open."""
+    """Save the settings. The caller must have a transaction open.
+
+    The settings live on a DataStorage element in the model, so a Sync with Central
+    sends them to central like any other change. In a workshared model the element
+    is checked out first; if another user owns it, a clear error is raised.
+    """
     from identity import _write_entity
     storage = _storage(doc, create=True)
+    _check_out(doc, storage)
     _write_entity(storage, SETTINGS_SCHEMA_GUID, SETTINGS_SCHEMA_NAME, "Place Resource legend settings.", normalize(data))
 
 
@@ -108,6 +114,35 @@ def describe(data):
     """Short text for dialogs."""
     data = normalize(data)
     return "Legend text style: {0}".format(data["text_type"] or "not set (settings file is used)")
+
+
+def _check_out(doc, element):
+    """Borrow the settings element in a workshared model. Raises when someone else has it."""
+    if not getattr(doc, "IsWorkshared", False):
+        return
+    from errors import LegendOperationError
+    from System.Collections.Generic import List
+    from version_adapter import get_db
+    DB = get_db()
+    ids = List[DB.ElementId]()
+    ids.Add(element.Id)
+    try:
+        DB.WorksharingUtils.CheckoutElements(doc, ids)
+    except Exception:
+        pass
+    try:
+        status = DB.WorksharingUtils.GetCheckoutStatus(doc, element.Id)
+    except Exception:
+        return
+    if status == DB.CheckoutStatus.OwnedByOtherUser:
+        try:
+            owner = DB.WorksharingUtils.GetWorksharingTooltipInfo(doc, element.Id).Owner
+        except Exception:
+            owner = "another user"
+        raise LegendOperationError(
+            "The legend settings are being edited by {0}. Ask them to sync, then reload latest and "
+            "try again.".format(owner)
+        )
 
 
 def _storage(doc, create):

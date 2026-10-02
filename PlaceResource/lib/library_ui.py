@@ -80,36 +80,52 @@ HEADING_FONT_ROW = "Heading font"
 TEXT_FONT_ROW = "Description font"
 
 
+def setup_rows(saved, families):
+    """Rows of the Legend Setup window.
+
+    ``saved`` is the project settings; ``families`` is [(category, family name, loaded)].
+    Returns (groups, missing count) where groups is [(title, [(text, state)])].
+    """
+    heading = saved.get("heading_text_type")
+    body = saved.get("text_type")
+    fonts = [
+        ("{0} - {1}".format(HEADING_FONT_ROW, heading or (body and "Same as description font") or "Not set"),
+         "ok" if (heading or body) else "missing"),
+        ("{0} - {1}".format(TEXT_FONT_ROW, body or "Not set"), "ok" if body else "missing"),
+    ]
+    rows = []
+    missing = 0 if body else 1
+    for category, family, loaded in families:
+        if loaded:
+            rows.append(("{0} - {1}".format(category, family), "ok"))
+        else:
+            rows.append(("{0} - Not loaded".format(category), "missing"))
+            missing += 1
+    return [("Fonts", fonts), ("Legend families", rows)], missing
+
+
 def run_setup(doc, library_settings):
     """Legend Setup: the heading and description fonts and the symbol family for each legend category.
 
-    Shows one list. Pick a row and press Change; press Done to finish. Everything
-    is saved in the model.
+    Shows one list: fonts, a separator, then one row per category in green (family
+    loaded) or red (not loaded). Pick a row and press Change; press Done to finish.
+    Everything is saved in the model, so it goes to central with the next sync.
     """
     from project_settings import read
     from ui_service import choose_text_type
     while True:
         library = project_library(doc, library_settings)
         names = list(library["categories"].keys())
-        saved = read(doc)
-        labels = [HEADING_FONT_ROW, TEXT_FONT_ROW] + names
-        details = [
-            saved["heading_text_type"] or (saved["text_type"] and "same as description font") or "not set",
-            saved["text_type"] or "not set",
-        ]
-        missing = 0 if saved["text_type"] else 1
+        families = []
         for name in names:
             family = library["categories"][name]["family_name"]
-            if find_family(doc, family) is not None:
-                details.append(family)
-            else:
-                details.append("{0} (not loaded)".format(family))
-                missing += 1
+            families.append((name, family, find_family(doc, family) is not None))
+        groups, missing = setup_rows(read(doc), families)
         prompt = ("All set. Press Done to finish, or pick a row to change it." if not missing else
-                  "{0} still to set. Pick a row and press Change. Press Done when finished.".format(missing))
-        index = dialogs.choose_from_list(
-            "Legend Setup", labels, prompt=prompt + " Saved in this model.",
-            button_text="Change", details=details, cancel_text="Done",
+                  "{0} still to set (red). Pick a row and press Change. Press Done when finished.".format(missing))
+        index = dialogs.choose_from_groups(
+            "Legend Setup", groups, prompt=prompt + " Saved in this model.",
+            button_text="Change", cancel_text="Done",
         )
         if index is None:
             return
@@ -347,26 +363,40 @@ def _put_on_sheet(doc, uidoc, sheet, legend_view, config, corner, report):
         interactive_place,
         legend_viewport_on_sheet,
         place_on_sheet,
+        placed_width_check,
         set_viewport_type,
         sheet_label,
     )
+    from units import mm_to_internal
     if legend_view is None:
         return
+
+    def _check_width(viewport):
+        if report.get("width_mm"):
+            width_view = mm_to_internal(report["width_mm"]) * float(legend_view.Scale or config["scale"])
+            report["warnings"].extend(placed_width_check(doc, viewport, width_view, report["width_mm"]))
+
     viewport = legend_viewport_on_sheet(doc, sheet, legend_view)
     if viewport is not None:
         report["warnings"].extend(set_viewport_type(doc, viewport, config.get("viewport_type_name")))
         if corner is None:
             report["notices"].append("The legend is already on '{0}'. Its position was kept.".format(sheet_label(sheet)))
             return
-        report["warnings"].extend(align_top_left(doc, viewport, corner))
+        warnings, notes = align_top_left(doc, viewport, corner)
+        report["warnings"].extend(warnings)
+        report["notices"].extend(notes)
+        _check_width(viewport)
         report["notices"].append("The legend was moved to the box you drew.")
         return
     if corner is not None:
         viewport, warnings = place_on_sheet(doc, sheet, legend_view, corner)
         report["warnings"].extend(warnings or [])
-        # The title is hidden first, so the box outline used for lining up is the legend itself.
         report["warnings"].extend(set_viewport_type(doc, viewport, config.get("viewport_type_name")))
-        report["warnings"].extend(align_top_left(doc, viewport, corner))
+        # The table's own top-left corner goes on the box corner, not the viewport outline.
+        warnings, notes = align_top_left(doc, viewport, corner)
+        report["warnings"].extend(warnings)
+        report["notices"].extend(notes)
+        _check_width(viewport)
         return
     viewport, warnings = interactive_place(doc, uidoc, sheet, legend_view, config, active_sheet=sheet)
     report["warnings"].extend(warnings or [])

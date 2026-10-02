@@ -335,6 +335,29 @@ class MarkMatchTests(unittest.TestCase):
         self.assertEqual(L.match_type_marks(entries, ["iws - 105", "IWS-101", "EWS-302"]), ["Partition A", "IWS-105"])
 
 
+class SetupRowTests(unittest.TestCase):
+    def test_rows_text_and_colours(self):
+        groups, missing = library_ui.setup_rows(
+            {"heading_text_type": None, "text_type": "Annotation - 2.5mm"},
+            [("Fire Strategy", "PR Legend - Fire Strategy", False), ("Walls", "Legend Symbol and text", True)],
+        )
+        self.assertEqual([title for title, _rows in groups], ["Fonts", "Legend families"])
+        self.assertEqual(groups[0][1], [
+            ("Heading font - Same as description font", "ok"),
+            ("Description font - Annotation - 2.5mm", "ok"),
+        ])
+        self.assertEqual(groups[1][1], [
+            ("Fire Strategy - Not loaded", "missing"),
+            ("Walls - Legend Symbol and text", "ok"),
+        ])
+        self.assertEqual(missing, 1)
+
+    def test_fonts_not_set(self):
+        groups, missing = library_ui.setup_rows({}, [])
+        self.assertEqual([state for _text, state in groups[0][1]], ["missing", "missing"])
+        self.assertEqual(missing, 1)
+
+
 class LegendNameTests(unittest.TestCase):
     PATTERN = "{category} LEGEND - {sheet_number}"
 

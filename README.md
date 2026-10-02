@@ -99,7 +99,9 @@ Settings for this model only:
 - **Description font:** text type for the descriptions.
 - **One row per category** (Walls, Fire Strategy, ...): pick its symbol family from the Generic Annotation and Detail Item families loaded in the model.
 
-Pick a row and press Change; press Done to finish. The window says when everything is set. Everything is saved in the model.
+- **Window:** fonts on top, a separator, then one row per category. Green = family loaded (`Walls - Legend Symbol and text`), red = not loaded (`Fire Strategy - Not loaded`).
+- Pick a row and press Change; press Done to finish. The window says how many are still to set.
+- **Saved in the model** (Extensible Storage on a DataStorage element), so Sync with Central sends it to central and everyone on the project gets the same setup. In a shared model the settings element is checked out when you change it; if someone else has it, the tool says who.
 
 ### Place Legend on Sheet
 
@@ -141,7 +143,7 @@ Shared `defaults`, then one entry per category:
 ## Not yet confirmed in Revit
 
 - Placing annotation symbols in a legend with `NewFamilyInstance`.
-- `Selection.PickBox` on a sheet and keeping the viewport corner with `SetBoxCenter`.
+- `Selection.PickBox` on a sheet, and placing the table corner with `Viewport.GetProjectionToSheetTransform` + `View.GetModelToProjectionTransforms` (Revit 2022+; falls back to the viewport outline).
 - Collecting linked elements with `FilteredElementCollector(doc, viewId, linkId)` (Revit 2024+).
 
 ## Manual test checklist
